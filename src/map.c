@@ -55,11 +55,29 @@ void map_generate_dungeon(Map* map) {
         iter++;
     }
 
-    // 3. Connectivity Check (Flood Fill)
-    // A single drunken walk is guaranteed strictly connected, 
-    // but we'll verify to be safe and set a flag or just ensure robustness.
-    // If we were placing rooms RANDOMLY, this would be needed. 
-    // With Drunken Walk, we are good.
+    // 3. Post-Generation Cleanup (Remove Isolated Walls)
+    bool changes = true;
+    while(changes) {
+        changes = false;
+        for(int x=1; x<MAP_WIDTH-1; x++) {
+            for(int y=1; y<MAP_HEIGHT-1; y++) {
+                if(map->tiles[x][y].type == TILE_WALL) {
+                    int neighbor_walls = 0;
+                    if(map->tiles[x][y-1].type == TILE_WALL) neighbor_walls++;
+                    if(map->tiles[x][y+1].type == TILE_WALL) neighbor_walls++;
+                    if(map->tiles[x-1][y].type == TILE_WALL) neighbor_walls++;
+                    if(map->tiles[x+1][y].type == TILE_WALL) neighbor_walls++;
+
+                    if(neighbor_walls == 0) {
+                        map->tiles[x][y].type = TILE_FLOOR; // Flip isolated wall to floor
+                        changes = true;
+                    }
+                }
+            }
+        }
+    }
+    
+    // 4. Connectivity Check (Flood Fill) - Implicitly handled by Drunken Walk
 }
 
 bool map_is_walkable(Map* map, int x, int y) {

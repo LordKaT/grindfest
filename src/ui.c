@@ -151,8 +151,8 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                 } else {
                     // Isolated or ... space? No, change to floor for sanity sake for now.
                     // I should do this during map generation, not here.
-                    map->tiles[x][y].type = TILE_FLOOR;
-                    mvwaddch(win_map, y, x, '.');
+                    //map->tiles[x][y].type = TILE_FLOOR;
+                    mvwaddch(win_map, y, x, 'X');
                 }
             } else {
                 mvwaddch(win_map, y, x, 'X');
