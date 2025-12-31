@@ -27,4 +27,8 @@ typedef struct {
 void map_generate_dungeon(Map* map);
 bool map_is_walkable(Map* map, int x, int y);
 
+// FOV
+#define FOV_RADIUS 8
+void map_compute_fov(Map* map, int px, int py, int radius);
+
 #endif

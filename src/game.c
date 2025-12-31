@@ -142,6 +142,9 @@ static void update_dungeon(void) {
             // Loop until valid action taken
             bool turn_taken = false;
             while (!turn_taken) {
+                // Update FOV
+                map_compute_fov(&g_game.current_map, g_game.player.x, g_game.player.y, FOV_RADIUS);
+
                 // Render
                 ui_clear();
                 ui_render_map(&g_game.current_map, &g_game.player, g_game.entities, g_game.entity_count);

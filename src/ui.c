@@ -105,25 +105,23 @@ static cchar_t* get_wall_glyph(int mask) {
         inited = true;
     }
     if (mask == 0)
-        return NULL;
+        return table[0]; // Return consistent WACS_BLOCK instead of NULL
     return table[mask];
 }
 
-static bool connects_to_wall(TileType t) {
-    return t == TILE_WALL;
-}
-
-static TileType tile_at(const Map* map, int x, int y) {
-    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return TILE_VOID; // Treat OOB as void
-    return map->tiles[x][y].type;
+static bool tile_is_known_wall(const Map* map, int x, int y) {
+    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return false;
+    const Tile* t = &map->tiles[x][y];
+    if (!(t->visible || t->explored)) return false;
+    return t->type == TILE_WALL;
 }
 
 static int wall_mask_at(const Map* map, int x, int y) {
     int m = 0;
-    if (connects_to_wall(tile_at(map, x, y-1))) m |= DIR_N;
-    if (connects_to_wall(tile_at(map, x+1, y))) m |= DIR_E;
-    if (connects_to_wall(tile_at(map, x, y+1))) m |= DIR_S;
-    if (connects_to_wall(tile_at(map, x-1, y))) m |= DIR_W;
+    if (tile_is_known_wall(map, x, y-1)) m |= DIR_N;
+    if (tile_is_known_wall(map, x+1, y)) m |= DIR_E;
+    if (tile_is_known_wall(map, x, y+1)) m |= DIR_S;
+    if (tile_is_known_wall(map, x-1, y)) m |= DIR_W;
     return m;
 }
 
@@ -134,10 +132,26 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
     // Draw Map
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {
+            // Visibility Check
+            bool visible = map->tiles[x][y].visible;
+            bool explored = map->tiles[x][y].explored;
+            
+            if (!visible && !explored) {
+                mvwaddch(win_map, y, x, ' ');
+                continue;
+            }
+
             int color = 2; // Default
-            wattr_set(win_map, A_NORMAL, color, NULL); // use wide attr set if possible or just wattron
-            // ncursesw uses wattr_set or wattron/wattroff same as ncurses usually
-            wattron(win_map, COLOR_PAIR(color));
+            attr_t attrs = A_NORMAL;
+            
+            if (!visible && explored) {
+                attrs |= A_DIM; // Dim for explored but out of sight
+            }
+
+            wattr_set(win_map, attrs, color, NULL); 
+            // Note: wattr_set takes pair index as short, so pure color index OK.
+            // wattron(win_map, COLOR_PAIR(color)); // Mixing wattr_set and wattron can be tricky.
+            // Let's rely on wattr_set for both attr and color.
             
             if (map->tiles[x][y].type == TILE_FLOOR) {
                 mvwaddch(win_map, y, x, '.');
@@ -149,32 +163,33 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                 if (wglyph) {
                     mvwadd_wch(win_map, y, x, wglyph);
                 } else {
-                    // Isolated or ... space? No, change to floor for sanity sake for now.
-                    // I should do this during map generation, not here.
-                    //map->tiles[x][y].type = TILE_FLOOR;
-                    mvwaddch(win_map, y, x, 'X');
+                    // Fallback
+                     mvwaddch(win_map, y, x, 'X'); 
                 }
             } else {
-                mvwaddch(win_map, y, x, 'X');
+                 mvwaddch(win_map, y, x, ' '); 
             }
-            wattroff(win_map, COLOR_PAIR(color));
+            // Reset for safety (though loop sets it next time)
+            wattr_set(win_map, A_NORMAL, 0, NULL);
         }
     }
     
     // 2. Render Objects / NPCs / Enemies
-    // We treat them all as "entities" for now, but iterate them.
-    // If we had a type field, we'd do passes.
-    // Since we don't, we just render them.
     for (int i = 0; i < entity_count; i++) {
         if (!entities[i].is_active) continue;
-        if (entities[i].id == player->id) continue; // Skip player (drawn last)
+        if (entities[i].id == player->id) continue;
+        
+        // FOV check for entities
+        if (!map->tiles[entities[i].x][entities[i].y].visible) continue;
+        
+        // Entities should also be hidden if not visible!
         
         wattron(win_map, COLOR_PAIR(entities[i].color_pair));
         mvwaddch(win_map, entities[i].y, entities[i].x, entities[i].symbol);
         wattroff(win_map, COLOR_PAIR(entities[i].color_pair));
     }
     
-    // 3. Render Player (Last among entities)
+    // 3. Render Player (Always visible if game is running, or map->visible check)
     if (player->is_active) {
         wattron(win_map, COLOR_PAIR(player->color_pair));
         mvwaddch(win_map, player->y, player->x, player->symbol);

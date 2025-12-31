@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h> // for logging/debug if needed
+#include <math.h>
 #include "map.h"
 
 
@@ -78,6 +79,95 @@ void map_generate_dungeon(Map* map) {
     }
     
     // 4. Connectivity Check (Flood Fill) - Implicitly handled by Drunken Walk
+}
+
+// ----------------------------------------------------------------------------
+// Field of View (Recursive Shadowcasting)
+// ----------------------------------------------------------------------------
+
+// Raycasting fallback (Simple, robust)
+void map_compute_fov(Map* map, int px, int py, int radius) {
+    // 1. Reset visibility
+    for (int x = 0; x < MAP_WIDTH; x++) {
+        for (int y = 0; y < MAP_HEIGHT; y++) {
+            map->tiles[x][y].visible = false;
+        }
+    }
+    
+    // 2. Mark player tile visible
+    if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT) {
+        map->tiles[px][py].visible = true;
+        map->tiles[px][py].explored = true;
+    }
+
+    // 3. Cast rays to perimeter of square 2*radius
+    for (int i = -radius; i <= radius; i++) {
+        // Top/Bottom
+        int targets[2][2] = { {px + i, py - radius}, {px + i, py + radius} };
+        // Left/Right
+        int targets2[2][2] = { {px - radius, py + i}, {px + radius, py + i} };
+        
+        for(int k=0; k<2; k++) { // Top/Bot
+            float dx = targets[k][0] - px;
+            float dy = targets[k][1] - py;
+            float dist = sqrtf(dx*dx + dy*dy);
+            float stepX = dx / dist;
+            float stepY = dy / dist;
+            
+            float curX = px + 0.5f;
+            float curY = py + 0.5f;
+            
+            for(int step=0; step<=radius; step++) {
+                int tx = (int)curX;
+                int ty = (int)curY;
+                
+                if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) break;
+                
+                // Distance check
+                if ((tx-px)*(tx-px) + (ty-py)*(ty-py) > radius*radius) break;
+
+                map->tiles[tx][ty].visible = true;
+                map->tiles[tx][ty].explored = true;
+                
+                if (map->tiles[tx][ty].type == TILE_WALL) {
+                    break; // Block sight
+                }
+                
+                curX += stepX;
+                curY += stepY;
+            }
+        }
+         for(int k=0; k<2; k++) { // Left/Right
+            float dx = targets2[k][0] - px;
+            float dy = targets2[k][1] - py;
+            float dist = sqrtf(dx*dx + dy*dy);
+            float stepX = dx / dist;
+            float stepY = dy / dist;
+            
+            float curX = px + 0.5f;
+            float curY = py + 0.5f;
+            
+            for(int step=0; step<=radius; step++) {
+                int tx = (int)curX;
+                int ty = (int)curY;
+                
+                if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) break;
+                
+                // Distance check
+                if ((tx-px)*(tx-px) + (ty-py)*(ty-py) > radius*radius) break;
+
+                map->tiles[tx][ty].visible = true;
+                map->tiles[tx][ty].explored = true;
+                
+                if (map->tiles[tx][ty].type == TILE_WALL) {
+                    break; // Block sight
+                }
+                
+                curX += stepX;
+                curY += stepY;
+            }
+        }
+    }
 }
 
 bool map_is_walkable(Map* map, int x, int y) {
