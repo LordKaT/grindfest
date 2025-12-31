@@ -148,4 +148,11 @@ bool entity_has_key_item(const Entity* e, KeyItemType ki);
 void entity_add_status(Entity* e, StatusEffectType type, int duration, int power);
 void entity_tick_status(Entity* e);
 
+// Stubs
+const char* entity_get_race_name(RaceType r);
+const char* entity_get_job_name(JobType j);
+int entity_get_derived_attack(const Entity* e);
+int entity_get_derived_defense(const Entity* e);
+int entity_get_tnl(int level);
+
 #endif

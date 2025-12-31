@@ -8,6 +8,7 @@ typedef enum {
     STATE_START_MENU,
     STATE_CHAR_CREATOR,
     STATE_DUNGEON_LOOP,
+    STATE_MENU,
     STATE_GAME_OVER
 } GameState;
 

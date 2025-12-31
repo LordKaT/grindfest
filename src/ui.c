@@ -1,7 +1,10 @@
 #define _XOPEN_SOURCE_EXTENDED 1
+#define _DEFAULT_SOURCE
 #include <ncurses.h>
 #include <locale.h>
 #include <stdarg.h>
+#include <stdlib.h> // for setenv
+
 #include <string.h>
 #include "ui.h"
 #include "turn.h"
@@ -19,6 +22,7 @@ static WINDOW *win_map;
 static WINDOW *win_panel;
 static WINDOW *win_log;
 static WINDOW *win_input;
+static WINDOW *win_menu; // Menu Window
 
 // Simple log buffer
 #define MAX_LOG_LINES 50
@@ -27,6 +31,9 @@ static char log_history[MAX_LOG_LINES][64];
 static int log_count = 0;
 
 void ui_init(void) {
+    // Reduce ESC delay to 25ms to prevent menu exit lag
+    setenv("ESCDELAY", "25", 1);
+    
     setlocale(LC_ALL, ""); // Enable wide chars
     initscr();
     cbreak();
@@ -66,6 +73,7 @@ void ui_cleanup(void) {
     delwin(win_panel);
     delwin(win_log);
     delwin(win_input);
+    if (win_menu) delwin(win_menu);
     endwin();
 }
 
@@ -74,6 +82,7 @@ void ui_clear(void) {
     werase(win_panel);
     werase(win_log);
     werase(win_input);
+    if (win_menu) werase(win_menu);
     
     // Draw borders/separators if needed
     // Typically box() takes character space, but our layout implies tight packing.
@@ -254,6 +263,69 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
     }
 }
 
+// ----------------------------------------------------------------------------
+// Menu System
+// ----------------------------------------------------------------------------
+
+void ui_open_menu(void) {
+    if (win_menu) return; // Already open
+    
+    int w = 40;
+    int h = 18;
+    int x = (80 - w) / 2; // Center on screen (assuming 80 wide term)
+    int y = (24 - h) / 2;
+    
+    win_menu = newwin(h, w, y, x);
+    wbkgd(win_menu, COLOR_PAIR(4)); // Cyan border style
+    keypad(win_menu, TRUE);
+}
+
+void ui_close_menu(void) {
+    if (win_menu) {
+        delwin(win_menu);
+        win_menu = NULL;
+    }
+    // Force full repaint of underlying map next frame
+    touchwin(win_map); 
+}
+
+void ui_render_menu(const Entity* player) {
+    if (!win_menu) return;
+    
+    // "Frozen" Background:
+    // We do NOT erase win_map. We just refresh it to ensure it stays visible under the menu.
+    // However, ncurses might overwrite if we don't touch.
+    // If we simply wrefresh(win_map) then wrefresh(win_menu), menu pops on top.
+    
+    // Box
+    box(win_menu, 0, 0);
+    
+    mvwprintw(win_menu, 0, 2, "[ Status ]");
+    
+    // Content
+    int y = 2;
+    mvwprintw(win_menu, y++, 2, "Name: %s", player->name);
+    y++;
+    mvwprintw(win_menu, y++, 2, "Job:  %s Lv.%d", entity_get_job_name(player->main_job), player->current_level);
+    mvwprintw(win_menu, y++, 2, "Race: %s", entity_get_race_name(player->race));
+    y++;
+    mvwprintw(win_menu, y++, 2, "HP:   %d / %d", player->resources.hp, player->resources.max_hp);
+    mvwprintw(win_menu, y++, 2, "MP:   %d / %d", player->resources.mp, player->resources.max_mp);
+    mvwprintw(win_menu, y++, 2, "TP:   %d", player->resources.tp);
+    y++;
+    mvwprintw(win_menu, y++, 2, "STR:  %d", player->current_stats.str);
+    mvwprintw(win_menu, y++, 2, "DEX:  %d", player->current_stats.dex);
+    mvwprintw(win_menu, y++, 2, "VIT:  %d", player->current_stats.vit);
+    y++;
+    mvwprintw(win_menu, y++, 2, "ATK:  %d", entity_get_derived_attack(player));
+    mvwprintw(win_menu, y++, 2, "DEF:  %d", entity_get_derived_defense(player));
+    
+    y++;
+    mvwprintw(win_menu, y++, 2, "EXP:  %d / %d", player->job_exp[player->main_job], entity_get_tnl(player->current_level));
+
+    mvwprintw(win_menu, 16, 2, "[ESC] Close");
+}
+
 void ui_render_stats(const Entity* player) {
     wattron(win_panel, COLOR_PAIR(2));
     box(win_panel, 0, 0);
@@ -291,6 +363,7 @@ void ui_refresh(void) {
     wrefresh(win_panel);
     wrefresh(win_log);
     wrefresh(win_input);
+    if (win_menu) wrefresh(win_menu);
 }
 
 void ui_log(const char* fmt, ...) {

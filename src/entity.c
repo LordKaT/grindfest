@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "entity.h"
-#include "ui.h" // For logging (if needed, though entity module should ideally be decoupled from UI, but simple for now)
+#include "ui.h" // For logging
 
 void entity_add_exp(Entity* e, int amount) {
     if (e->type != ENTITY_PLAYER) return; // Simple for now
@@ -66,4 +66,41 @@ void entity_tick_status(Entity* e) {
             }
         }
     }
+}
+
+// Helpers Stubs
+const char* entity_get_race_name(RaceType r) {
+    switch (r) {
+        case RACE_HUME: return "Hume";
+        case RACE_ELVAAN: return "Elvaan";
+        case RACE_TARUTARU: return "Tarutaru";
+        case RACE_MITHRA: return "Mithra";
+        case RACE_GALKA: return "Galka";
+        case RACE_WORM: return "Worm";
+        default: return "Unknown";
+    }
+}
+
+const char* entity_get_job_name(JobType j) {
+     switch (j) {
+        case JOB_WARRIOR: return "WAR";
+        case JOB_MONK: return "MNK";
+        case JOB_THIEF: return "THF";
+        case JOB_BLACK_MAGE: return "BLM";
+        case JOB_WHITE_MAGE: return "WHM";
+        case JOB_RED_MAGE: return "RDM";
+        default: return "???";
+    }
+}
+
+int entity_get_derived_attack(const Entity* e) {
+    return e->current_stats.str * 2; // Stub
+}
+
+int entity_get_derived_defense(const Entity* e) {
+    return e->current_stats.vit * 2; // Stub
+}
+
+int entity_get_tnl(int level) {
+    return level * 100;
 }

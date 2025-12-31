@@ -212,10 +212,49 @@ static void update_dungeon(void) {
                 InputResult res = input_handle_key(key);
                 
                 int dx = 0, dy = 0;
-                if (res.type == INPUT_ACTION_QUIT) {
+                if (res.type == INPUT_ACTION_CANCEL) {
+                    // Quit request? For now, yes.
+                    // Ideally: Confirmation prompt
                     g_game.running = false;
                     turn_taken = true;
                 }
+                else if (res.type == INPUT_ACTION_MENU) {
+                    ui_open_menu();
+                    g_game.current_state = STATE_MENU;
+                    // Do not set turn_taken=true; we just switch state and loop again
+                    // The main loop will switch to update_menu_loop() immediately
+                    // But we are inside `update_dungeon` input loop.
+                    // We need to break this input loop to let `game_run` switch dispatch.
+                    
+                    // We can return from update_dungeon?
+                    // Or set turn_taken=true (but that implies a turn passed?)
+                    // Actually, if we set turn_taken=true, it will attempt to simulate the turn.
+                    
+                    // Hack: We need a way to exit `update_dungeon` without ticking time.
+                    // The loop condition is `while (!turn_taken)`.
+                    // If we set turn_taken=true, it proceeds to check movement/actions.
+                    
+                    // Better approach: Check state *inside* the loop or change loop condition.
+                    // Or simply `return` from `update_dungeon`.
+                    // Reschedule the current event so we don't handle it now,
+                    // but we will handle it immediately when we return to this state.
+                    turn_add_event(evt.time, evt.entity_id, evt.type);
+
+                    return; 
+                }
+                else if (res.type == INPUT_ACTION_COMMAND) {
+                    // Handle command? 
+                    // ...
+                    // If user types "/menu" or presses 'm' (need to map 'm')
+                    // For now let's map 'm' in input.c too? Or just use a command.
+                    
+                    // Let's use specific key for menu if we had one.
+                    // For now, let's assume we map 'm' to a new action or just use '/' command.
+                    
+                    // Actually, let's map 'm' to INPUT_ACTION_MENU in a future step or just use a command
+                    // "status"
+                }
+                else if (res.type == INPUT_ACTION_MOVE_UP) dy = -1;
                 else if (res.type == INPUT_ACTION_MOVE_UP) dy = -1;
                 else if (res.type == INPUT_ACTION_MOVE_DOWN) dy = 1;
                 else if (res.type == INPUT_ACTION_MOVE_LEFT) dx = -1;
@@ -251,10 +290,20 @@ static void update_dungeon(void) {
                     
                     input_parse_command(full_cmd, &g_game.player, NULL);
                     
-                    // Commands take a turn? Maybe. Depends on the executed command.
-                    // Do not increment here.
-                    turn_taken = false;
-                    //turn_add_event(evt.time + 50, e->id, EVENT_MOVE); // fast action
+                    input_parse_command(full_cmd, &g_game.player, NULL);
+                    
+                    // Hack: Check if command switched state
+                    if (g_game.current_state == STATE_MENU) {
+                        turn_taken = true; // Break loop to enter menu loop next frame
+                        // But wait, if we return turn_taken=true, we might tick game clock?
+                        // We shouldn't tick clock for menu.
+                        // But update_dungeon expects turn_taken=true to actually process a turn.
+                        
+                        // We need to NOT increment time if we didn't actually take a turn.
+                        // But for now, let's just break the input loop.
+                    } else {
+                        turn_taken = false;
+                    }
                 }
 
                 if (dx != 0 || dy != 0) {
@@ -300,12 +349,35 @@ static void update_dungeon(void) {
     }
 }
 
+static void update_menu_loop(void) {
+    // 1. Render Menu (Frozen Map Background state is preserved in map window buffer?)
+    // Actually, ui_render_menu will handle the "Frozen" look.
+    
+    ui_render_menu(&g_game.player);
+    ui_refresh();
+    
+    // 2. Input
+    char buf[256] = {0};
+    int key = ui_get_input(buf, 256);
+    
+    InputResult res = input_handle_key(key);
+    
+    if (res.type == INPUT_ACTION_CANCEL) {
+        // Close Menu
+        ui_close_menu();
+        g_game.current_state = STATE_DUNGEON_LOOP;
+    }
+    
+    // Handle menu inputs...
+}
+
 void game_run(void) {
     while (g_game.running) {
         switch (g_game.current_state) {
             case STATE_START_MENU: update_start_menu(); break;
             case STATE_CHAR_CREATOR: update_char_creator(); break;
             case STATE_DUNGEON_LOOP: update_dungeon(); break;
+            case STATE_MENU: update_menu_loop(); break;
             case STATE_GAME_OVER: g_game.running = false; break;
         }
     }

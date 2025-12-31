@@ -31,11 +31,9 @@ InputResult input_handle_key(int key) {
         case '1':
             res.type = INPUT_ACTION_MOVE_DOWN_LEFT;
             break;
-        case '3':
-            res.type = INPUT_ACTION_MOVE_DOWN_RIGHT;
-            break;
         case 27: // ESC
-            res.type = INPUT_ACTION_QUIT;
+        case 'q': return (InputResult){INPUT_ACTION_CANCEL, ""};
+        case 'm': return (InputResult){INPUT_ACTION_MENU, ""};
             break;
         case '/':
             res.type = INPUT_ACTION_COMMAND;

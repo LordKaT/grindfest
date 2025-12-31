@@ -15,6 +15,11 @@ void ui_render_log(void);
 void ui_render_input_line(const char* current_input);
 void ui_refresh(void);
 
+// Menu
+void ui_open_menu(void);
+void ui_close_menu(void);
+void ui_render_menu(const Entity* player);
+
 // Input
 // Non-blocking check for key? Or blocking 'getch'? 
 // We likely need a blocking call that returns a Key or String.
