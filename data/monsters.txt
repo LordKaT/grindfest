@@ -1,0 +1,3 @@
+Goblin:HP=30,LVL=1
+Rabbit:HP=20,LVL=1
+Worm:HP=40,LVL=2

@@ -1,0 +1,26 @@
+# Build artifacts
+bin/
+obj/
+*.o
+*.a
+*.so
+*.dSYM/
+*.exe
+*.out
+
+# Logs
+*.log
+
+# Editor/OS junk
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile.user
+
+# IDE
+.vscode/
+.idea/
