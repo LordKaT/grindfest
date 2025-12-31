@@ -164,7 +164,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                     mvwadd_wch(win_map, y, x, wglyph);
                 } else {
                     // Fallback
-                     mvwaddch(win_map, y, x, 'X'); 
+                     mvwaddch(win_map, y, x, ' '); 
                 }
             } else {
                  mvwaddch(win_map, y, x, ' '); 

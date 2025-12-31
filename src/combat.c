@@ -17,9 +17,9 @@ void combat_engage(Entity* attacker, EntityID target_id) {
     
     ui_log("%s engages target!", attacker->name);
     
-    // Schedule first attack immediately (or after delay?)
-    // FFXI: You engage, then delay starts filling? or first hit?
-    // Let's schedule it for NOW + Delay.
+    // Schedule first attack immediately
+    // FFXI: You engage, then delay starts filling
+    // Inverse (monster->player) is true as well
     turn_add_event(turn_get_current_time() + attacker->weapon_delay, attacker->id, EVENT_ATTACK_READY);
 }
 
@@ -51,8 +51,6 @@ void combat_execute_auto_attack(Entity* attacker, Entity* target) {
         combat_disengage(attacker);
         
         target->is_active = false;
-        // Schedule Respawn? handled by other logic or here.
-        // Prompt says: "When an entity dies, it leaves a tombstone... triggers respawn after N turns"
-        // Let's mark it inactive. The map/turn system should handle respawn ticks.
+        // Respawn needs to happen at map spawn points. Let's mark as inactive for now.
     }
 }

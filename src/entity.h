@@ -9,16 +9,27 @@ typedef enum {
     JOB_WARRIOR,
     JOB_MONK,
     JOB_THIEF,
-    JOB_MAGE,
+    JOB_BLACK_MAGE,
+    JOB_WHITE_MAGE,
+    JOB_RED_MAGE,
     JOB_MAX
 } JobType;
+
+typedef enum {
+    RACE_HUME,
+    RACE_ELVAAN,
+    RACE_TARUTARU,
+    RACE_MITHRA,
+    RACE_GALKA,
+    RACE_MAX
+} RaceType;
 
 typedef struct {
     int str;
     int dex;
     int vit;
     int agi;
-    int intel; // "int" is reserved
+    int intel;
     int mnd;
     int chr;
 } Attributes;
@@ -43,8 +54,10 @@ typedef struct {
     char symbol;
     int color_pair;
     
+    RaceType race;
+
     JobType main_job;
-    // JobType sub_job; // Reserved for future
+    JobType sub_job; // Reserved for future
 
     Attributes stats;
     Resources resources;
