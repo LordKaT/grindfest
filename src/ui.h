@@ -9,7 +9,7 @@ void ui_cleanup(void);
 
 // Rendering
 void ui_clear(void);
-void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count);
+void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count, RenderMode mode);
 void ui_render_stats(const Entity* player);
 void ui_render_log(void);
 void ui_render_input_line(const char* current_input);

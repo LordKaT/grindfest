@@ -40,6 +40,18 @@ InputResult input_handle_key(int key) {
         case '/':
             res.type = INPUT_ACTION_COMMAND;
             break;
+        case '5':
+            res.type = INPUT_ACTION_WAIT;
+            break;
+        case KEY_F(1):
+            res.type = INPUT_ACTION_VIEW_NORMAL;
+            break;
+        case KEY_F(2):
+            res.type = INPUT_ACTION_VIEW_SMELL;
+            break;
+        case KEY_F(3):
+            res.type = INPUT_ACTION_VIEW_SOUND;
+            break;
         default:
             break;
     }

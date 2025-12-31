@@ -14,6 +14,7 @@ void game_init(void) {
     memset(&g_game, 0, sizeof(Game));
     g_game.running = true;
     g_game.current_state = STATE_START_MENU;
+    g_game.render_mode = RENDER_MODE_NORMAL;
     
     // Init modules
     ui_init();
@@ -119,6 +120,8 @@ static void update_dungeon(void) {
 
     if (evt.type == EVENT_ATTACK_READY) {
         // Process Auto Attack
+        // Note: If Player Move and Attack happen at same time, Priority ID (insertion order)
+        // determines order. Scheduler executes earlier enqueued event first.
         if (e->is_engaged) {
             ui_log("%s auto-attacks!", e->name);
             // Schedule next attack
@@ -127,17 +130,16 @@ static void update_dungeon(void) {
         }
     } else if (evt.type == EVENT_MOVE) {
         if (e->id == g_game.player.id) {
-            // Player Turn: Block for input
-            // But we must permit the render loop to draw while waiting? 
-            // Ncurses `getch` blocks. 
-            // If we block here, background animations (if any) stop. 
-            // But for a roguelike, freezing the world until player acts is standard.
+            // Player Turn: Input Loop
+            // The game waits indefinitely for player input here.
+            // Render loop runs to keep UI fresh, but game time (simulation) is paused.
             
-            // PROBLEM: "Movement and Attacking are separate event chains"
-            // If Player is Auto-Attacking, that event might be in the future.
-            // If we block NOW for movement, time stops. 
-            // That is correct for a roguelike. Even if "auto attacking", the attack happens at specific ticks.
-            // Those ticks won't process until we finish the current turn (Time += cost).
+            // Turn Logic (turn-cost units, not real-time):
+            // 1. Pop the next event by scheduled time.
+            // 2. If it is the player's Move event, block for input.
+            // 3. Input determines action cost and schedules the next Move event.
+            // 4. Any intermediate events (like auto-attacks) scheduled between now and the
+            //    next Move event will be popped and processed in order before input resumes.
             
             // Loop until valid action taken
             bool turn_taken = false;
@@ -145,9 +147,13 @@ static void update_dungeon(void) {
                 // Update FOV
                 map_compute_fov(&g_game.current_map, g_game.player.x, g_game.player.y, FOV_RADIUS);
 
+                // Update visuals (FOV, Render).
+                // Note: Simulation state (Smell/Sound) is NOT updated here.
+                // It only updates when 'turn_taken' becomes true.
+                
                 // Render
                 ui_clear();
-                ui_render_map(&g_game.current_map, &g_game.player, g_game.entities, g_game.entity_count);
+                ui_render_map(&g_game.current_map, &g_game.player, g_game.entities, g_game.entity_count, g_game.render_mode);
                 ui_render_stats(&g_game.player);
                 ui_render_log();
                 ui_render_input_line(""); // Clear input line
@@ -171,6 +177,15 @@ static void update_dungeon(void) {
                 else if (res.type == INPUT_ACTION_MOVE_UP_RIGHT) { dx = 1; dy = -1; }
                 else if (res.type == INPUT_ACTION_MOVE_DOWN_LEFT) { dx = -1; dy = 1; }
                 else if (res.type == INPUT_ACTION_MOVE_DOWN_RIGHT) { dx = 1; dy = 1; }
+                else if (res.type == INPUT_ACTION_VIEW_NORMAL) g_game.render_mode = RENDER_MODE_NORMAL;
+                else if (res.type == INPUT_ACTION_VIEW_SMELL) g_game.render_mode = RENDER_MODE_SMELL;
+                else if (res.type == INPUT_ACTION_VIEW_SOUND) g_game.render_mode = RENDER_MODE_SOUND;
+                else if (res.type == INPUT_ACTION_WAIT) {
+                    ui_log("You wait.");
+                    turn_taken = true;
+                    // Standard wait cost (100)
+                    turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
+                }
                 else if (res.type == INPUT_ACTION_COMMAND) {
                     // Enter command mode
                     ui_render_input_line("/");
@@ -202,6 +217,11 @@ static void update_dungeon(void) {
                          e->x = nx;
                          e->y = ny;
                          turn_taken = true;
+                         // Smell update logic
+                         map_update_smell(&g_game.current_map, g_game.player.x, g_game.player.y);
+                         // Sound update logic (already handled by loop re-entry? no, instantaneous)
+                         map_update_sound(&g_game.current_map, g_game.player.x, g_game.player.y, 10);
+
                          // Movement cost
                          // Use Entity stats later
                          turn_add_event(evt.time + 100, e->id, EVENT_MOVE);

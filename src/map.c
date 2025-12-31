@@ -170,6 +170,147 @@ void map_compute_fov(Map* map, int px, int py, int radius) {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Sensory Systems (Smell / Sound)
+// ----------------------------------------------------------------------------
+
+void map_update_smell(Map* map, int px, int py) {
+    // 1. Global Decay
+    for(int x=0; x<MAP_WIDTH; x++) {
+        for(int y=0; y<MAP_HEIGHT; y++) {
+            if (map->smell[x][y] > 20) 
+                 map->smell[x][y] -= 20;
+            else 
+                 map->smell[x][y] = 0;
+        }
+    }
+
+    // 2. Source (Player)
+    if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT) {
+        map->smell[px][py] = 255;
+    }
+
+    // 3. Diffusion Pass (using temp buffer to avoid directional bias)
+    uint8_t next_smell[MAP_WIDTH][MAP_HEIGHT];
+    // Copy current state
+    for(int x=0; x<MAP_WIDTH; x++) {
+        for(int y=0; y<MAP_HEIGHT; y++) {
+            next_smell[x][y] = map->smell[x][y];
+        }
+    }
+
+    uint8_t drop_off = 40; // Diffusion loss
+
+    for(int x=1; x<MAP_WIDTH-1; x++) {
+        for(int y=1; y<MAP_HEIGHT-1; y++) {
+            if (map->tiles[x][y].type == TILE_WALL) continue; // Walls don't diffuse
+
+            // Check neighbors
+            uint8_t max_n = 0;
+            // N
+            if (map->smell[x][y-1] > max_n) max_n = map->smell[x][y-1];
+            // S
+            if (map->smell[x][y+1] > max_n) max_n = map->smell[x][y+1];
+            // E
+            if (map->smell[x+1][y] > max_n) max_n = map->smell[x+1][y];
+            // W
+            if (map->smell[x-1][y] > max_n) max_n = map->smell[x-1][y];
+
+            // Absorb
+            if (max_n > drop_off) {
+                uint8_t diffused = max_n - drop_off;
+                if (diffused > next_smell[x][y]) {
+                    next_smell[x][y] = diffused;
+                }
+            }
+        }
+    }
+
+    // Apply back
+    for(int x=0; x<MAP_WIDTH; x++) {
+        for(int y=0; y<MAP_HEIGHT; y++) {
+            map->smell[x][y] = next_smell[x][y];
+        }
+    }
+}
+
+// Simple BFS Queue for Sound
+typedef struct {
+    int x, y;
+    int dist;
+    int walls;
+} SoundNode;
+
+void map_update_sound(Map* map, int px, int py, int radius) {
+    // 1. Reset
+    for(int x=0; x<MAP_WIDTH; x++) {
+        for(int y=0; y<MAP_HEIGHT; y++) {
+            map->sound[x][y] = SOUND_NONE;
+        }
+    }
+
+    if (px < 0 || px >= MAP_WIDTH || py < 0 || py >= MAP_HEIGHT) return;
+
+    // BFS
+    // Max queue size = map size (overkill but safe stack usage)
+    // Actually stack might be small? 54*16 = 864 structs. 
+    // Struct is ~16 bytes. 13KB. Safe for stack.
+    SoundNode queue[MAP_WIDTH * MAP_HEIGHT];
+    int head = 0;
+    int tail = 0;
+    bool visited[MAP_WIDTH][MAP_HEIGHT] = {false};
+
+    queue[tail++] = (SoundNode){px, py, 0, 0};
+    visited[px][py] = true;
+    map->sound[px][py] = SOUND_CLEAR;
+
+    int dirs[4][2] = { {0,-1}, {0,1}, {-1,0}, {1,0} };
+
+    while (head < tail) {
+        SoundNode curr = queue[head++];
+        
+        if (curr.dist >= radius) continue;
+
+        for (int i=0; i<4; i++) {
+            int nx = curr.x + dirs[i][0];
+            int ny = curr.y + dirs[i][1];
+
+            if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+            if (visited[nx][ny]) continue;
+
+            // Wall check
+            int new_walls = curr.walls;
+            if (map->tiles[nx][ny].type == TILE_WALL) {
+                new_walls++;
+            }
+
+            // Propagate constraints
+            // Can pass 1 wall (becomes muffled). 
+            // If already passed 1 wall and hits another, stops?
+            // "2+ Walls passed -> Blocked".
+            if (new_walls >= 2) continue; 
+
+            visited[nx][ny] = true;
+            
+            // Set State
+            if (new_walls == 0) map->sound[nx][ny] = SOUND_CLEAR;
+            else map->sound[nx][ny] = SOUND_MUFFLED;
+
+            queue[tail++] = (SoundNode){nx, ny, curr.dist + 1, new_walls};
+        }
+    }
+}
+
+bool map_is_smelly(const Map* map, int x, int y) {
+     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
+     return map->smell[x][y] > 0;
+}
+
+SoundState map_sound_at(const Map* map, int x, int y) {
+     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return SOUND_NONE;
+     return map->sound[x][y];
+}
+
 bool map_is_walkable(Map* map, int x, int y) {
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
     return map->tiles[x][y].type == TILE_FLOOR;

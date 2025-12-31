@@ -2,6 +2,7 @@
 #define MAP_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #define MAP_WIDTH 54
 #define MAP_HEIGHT 16
@@ -19,8 +20,16 @@ typedef struct {
     bool occupied;  // Is an entity standing here?
 } Tile;
 
+typedef enum {
+    SOUND_NONE,
+    SOUND_CLEAR,
+    SOUND_MUFFLED
+} SoundState;
+
 typedef struct {
     Tile tiles[MAP_WIDTH][MAP_HEIGHT];
+    uint8_t smell[MAP_WIDTH][MAP_HEIGHT]; // 0-255 smell value
+    SoundState sound[MAP_WIDTH][MAP_HEIGHT]; // Sound Propagation state
 } Map;
 
 // Map Gen
@@ -30,5 +39,13 @@ bool map_is_walkable(Map* map, int x, int y);
 // FOV
 #define FOV_RADIUS 8
 void map_compute_fov(Map* map, int px, int py, int radius);
+
+// Sensory
+void map_update_smell(Map* map, int px, int py);
+void map_update_sound(Map* map, int px, int py, int radius);
+
+// Helpers
+bool map_is_smelly(const Map* map, int x, int y);
+SoundState map_sound_at(const Map* map, int x, int y);
 
 #endif

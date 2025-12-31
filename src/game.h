@@ -11,8 +11,15 @@ typedef enum {
     STATE_GAME_OVER
 } GameState;
 
+typedef enum {
+    RENDER_MODE_NORMAL,
+    RENDER_MODE_SMELL,
+    RENDER_MODE_SOUND
+} RenderMode;
+
 typedef struct {
     GameState current_state;
+    RenderMode render_mode;
     bool running;
     
     Map current_map;

@@ -40,6 +40,8 @@ void ui_init(void) {
         init_pair(2, COLOR_WHITE, COLOR_BLACK);  // Default
         init_pair(3, COLOR_RED, COLOR_BLACK);    // Enemy
         init_pair(4, COLOR_CYAN, COLOR_BLACK);   // UI borders
+        init_pair(5, COLOR_BLUE, COLOR_BLACK);   // Sound Clear
+        init_pair(6, COLOR_CYAN, COLOR_BLACK);   // Sound Muffled (reuse cyan but specific semantic)
     }
 
     bkgd(COLOR_PAIR(2)); // Force stdscr to black
@@ -125,17 +127,74 @@ static int wall_mask_at(const Map* map, int x, int y) {
     return m;
 }
 
-void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count) {
+void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count, RenderMode mode) {
     // Basic rendering 
     scrollok(win_map, FALSE);
 
     // Draw Map
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {
+            
+            // Render Mode Logic
+            if (mode == RENDER_MODE_SMELL) {
+                 if (map->tiles[x][y].type == TILE_WALL) {
+                     // Draw walls normally (can delegate to normal logic or dup)
+                 } else {
+                     // Floor
+                     int smell = map->smell[x][y];
+                     int color = 3; // Red
+                     attr_t attrs = A_NORMAL;
+                     
+                     if (smell == 0) {
+                         // Normal floor
+                         wattr_set(win_map, A_NORMAL, 2, NULL);
+                         mvwaddch(win_map, y, x, '.');
+                         continue;
+                     } 
+                     
+                     if (smell >= 128) attrs = A_BOLD;
+                     else if (smell < 64) attrs = A_DIM;
+                     
+                     wattr_set(win_map, attrs, color, NULL);
+                     mvwadd_wch(win_map, y, x, WACS_BLOCK);
+                     continue;
+                 }
+            }
+            else if (mode == RENDER_MODE_SOUND) {
+                if (map->tiles[x][y].type == TILE_WALL) {
+                    // Draw walls normally 
+                } else {
+                    SoundState sound = map->sound[x][y];
+                    if (sound == SOUND_CLEAR) {
+                        wattr_set(win_map, A_BOLD, 5, NULL); // Blue
+                        mvwadd_wch(win_map, y, x, WACS_BLOCK);
+                        continue;
+                    } else if (sound == SOUND_MUFFLED) {
+                        wattr_set(win_map, A_DIM, 6, NULL); // Cyan
+                        mvwadd_wch(win_map, y, x, WACS_CKBOARD);
+                        continue;
+                    } else {
+                         // Normal floor
+                         wattr_set(win_map, A_NORMAL, 2, NULL);
+                         mvwaddch(win_map, y, x, '.');
+                         continue;
+                    }
+                }
+            }
+
+            // Normal / Fallback Rendering
             // Visibility Check
             bool visible = map->tiles[x][y].visible;
             bool explored = map->tiles[x][y].explored;
             
+            // If in debug mode, do we ignore FOV? 
+            // The prompt says "We need to verify these invisible layers work." 
+            // Usually debug modes bypass FOV.
+            if (mode != RENDER_MODE_NORMAL) {
+                visible = true; 
+                explored = true;
+            }
+
             if (!visible && !explored) {
                 mvwaddch(win_map, y, x, ' ');
                 continue;
@@ -149,9 +208,6 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
             }
 
             wattr_set(win_map, attrs, color, NULL); 
-            // Note: wattr_set takes pair index as short, so pure color index OK.
-            // wattron(win_map, COLOR_PAIR(color)); // Mixing wattr_set and wattron can be tricky.
-            // Let's rely on wattr_set for both attr and color.
             
             if (map->tiles[x][y].type == TILE_FLOOR) {
                 mvwaddch(win_map, y, x, '.');
