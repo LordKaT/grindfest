@@ -4,6 +4,7 @@
 #include "ai.h"
 #include "turn.h"
 #include "combat.h" // For engage if needed, though we might just set state
+#include "ui.h"
 
 // Helpers
 static bool ai_can_see_target(Map* map, Entity* observer, Entity* target);
@@ -78,6 +79,9 @@ static void ai_worm_update(Entity* e, Map* map, Game* game) {
         case AI_BURROWING: {
             // Dig into ground
             e->is_burrowed = true;
+            if (map->tiles[e->x][e->y].visible) {
+                 ui_log("%s tunnels underground.", e->name);
+            }
             map_set_occupied(map, e->x, e->y, false); // Free old tile
             
             // Pick destination
@@ -117,6 +121,11 @@ static void ai_worm_update(Entity* e, Map* map, Game* game) {
             e->x = e->burrow_dest_x;
             e->y = e->burrow_dest_y;
             e->is_burrowed = false;
+            
+            if (map->tiles[e->x][e->y].visible) {
+                 ui_log("%s appears from underground.", e->name);
+            }
+
             map_set_occupied(map, e->x, e->y, true); // Occupy new tile
             
             // Transition -> Idle
