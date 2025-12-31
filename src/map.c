@@ -81,9 +81,7 @@ void map_generate_dungeon(Map* map) {
     // 4. Connectivity Check (Flood Fill) - Implicitly handled by Drunken Walk
 }
 
-// ----------------------------------------------------------------------------
 // Field of View (Recursive Shadowcasting)
-// ----------------------------------------------------------------------------
 
 // Raycasting fallback (Simple, robust)
 void map_compute_fov(Map* map, int px, int py, int radius) {
@@ -170,16 +168,14 @@ void map_compute_fov(Map* map, int px, int py, int radius) {
     }
 }
 
-// ----------------------------------------------------------------------------
 // Sensory Systems (Smell / Sound)
-// ----------------------------------------------------------------------------
 
 void map_update_smell(Map* map, int px, int py) {
     // 1. Global Decay
     for(int x=0; x<MAP_WIDTH; x++) {
         for(int y=0; y<MAP_HEIGHT; y++) {
-            if (map->smell[x][y] > 20) 
-                 map->smell[x][y] -= 20;
+            if (map->smell[x][y] > 30) 
+                 map->smell[x][y] -= 30;
             else 
                  map->smell[x][y] = 0;
         }
@@ -199,7 +195,7 @@ void map_update_smell(Map* map, int px, int py) {
         }
     }
 
-    uint8_t drop_off = 40; // Diffusion loss
+    uint8_t drop_off = 80; // Diffusion loss
 
     for(int x=1; x<MAP_WIDTH-1; x++) {
         for(int y=1; y<MAP_HEIGHT-1; y++) {
@@ -286,8 +282,7 @@ void map_update_sound(Map* map, int px, int py, int radius) {
 
             // Propagate constraints
             // Can pass 1 wall (becomes muffled). 
-            // If already passed 1 wall and hits another, stops?
-            // "2+ Walls passed -> Blocked".
+            // If already passed 1 wall and hits another, stops
             if (new_walls >= 2) continue; 
 
             visited[nx][ny] = true;

@@ -204,9 +204,10 @@ static void update_dungeon(void) {
                     
                     input_parse_command(full_cmd, &g_game.player, NULL);
                     
-                    // Commands take a turn? Maybe.
-                    turn_taken = true; 
-                    turn_add_event(evt.time + 50, e->id, EVENT_MOVE); // fast action
+                    // Commands take a turn? Maybe. Depends on the executed command.
+                    // Do not increment here.
+                    turn_taken = false;
+                    //turn_add_event(evt.time + 50, e->id, EVENT_MOVE); // fast action
                 }
 
                 if (dx != 0 || dy != 0) {
@@ -220,7 +221,7 @@ static void update_dungeon(void) {
                          // Smell update logic
                          map_update_smell(&g_game.current_map, g_game.player.x, g_game.player.y);
                          // Sound update logic (already handled by loop re-entry? no, instantaneous)
-                         map_update_sound(&g_game.current_map, g_game.player.x, g_game.player.y, 10);
+                         map_update_sound(&g_game.current_map, g_game.player.x, g_game.player.y, 5);
 
                          // Movement cost
                          // Use Entity stats later
