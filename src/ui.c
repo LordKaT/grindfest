@@ -234,6 +234,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
     for (int i = 0; i < entity_count; i++) {
         if (!entities[i].is_active) continue;
         if (entities[i].id == player->id) continue;
+        if (entities[i].is_burrowed) continue;
         
         // FOV check for entities
         if (!map->tiles[entities[i].x][entities[i].y].visible) continue;

@@ -7,6 +7,7 @@
 #include "map.h"
 #include "entity.h"
 #include "input.h"
+#include "ai.h"
 
 Game g_game;
 
@@ -29,27 +30,10 @@ void game_init(void) {
     g_game.player.resources.max_hp = 100;
     g_game.player.resources.tp = 0;
     g_game.player.resources.max_tp = 3000;
+    g_game.player.resources.max_tp = 3000;
     g_game.player.is_active = true;
     
-    // Add Dummy Monster
-    g_game.entity_count = 1; // 0 is player
-    Entity* mob = &g_game.entities[0]; // Wait, logic says entities[0] is player?
-    // game_get_entity(0) returns &g_game.player.
-    // g_game.entities array is for OTHER entities.
-    // Let's stick to that convention.
-    
-    mob->id = 1;
-    strcpy(mob->name, "Goblin");
-    mob->symbol = 'g';
-    mob->color_pair = 3; // Red
-    mob->x = 10;
-    mob->y = 10;
-    mob->resources.hp = 50;
-    mob->resources.max_hp = 50;
-    mob->is_active = true;
-    g_game.entity_count = 1;
-
-    // Generate Dungeon
+    // Generate Dungeon first to ensure floors exist
     map_generate_dungeon(&g_game.current_map);
 
     // Place Player on random floor
@@ -57,11 +41,49 @@ void game_init(void) {
     while(!placed) {
         int rx = rand() % MAP_WIDTH;
         int ry = rand() % MAP_HEIGHT;
-        if (map_is_walkable(&g_game.current_map, rx, ry)) {
+        if (map_is_walkable(&g_game.current_map, rx, ry) && !map_is_occupied(&g_game.current_map, rx, ry)) {
             g_game.player.x = rx;
             g_game.player.y = ry;
+            map_set_occupied(&g_game.current_map, rx, ry, true);
             placed = 1;
         }
+    }
+    
+    // Spawn Worm
+    g_game.entity_count = 1; // 0 is player
+    int attempts = 0;
+    while (attempts < 50) {
+        int rx = rand() % MAP_WIDTH;
+        int ry = rand() % MAP_HEIGHT;
+        if (map_is_walkable(&g_game.current_map, rx, ry) && !map_is_occupied(&g_game.current_map, rx, ry)) {
+              Entity* e = &g_game.entities[0]; // First enemy
+              e->id = 1;
+              e->type = ENTITY_ENEMY;
+              e->race = RACE_WORM;
+              // e->job = JOB_WORM; // JobType? Not critical if not used yet
+              strcpy(e->name, "Tunnel Worm");
+              e->symbol = 'w';
+              e->color_pair = 3; // Red
+              e->x = rx;
+              e->y = ry;
+              e->resources.hp = 100;
+              e->resources.max_hp = 100;
+              e->is_active = true;
+              e->move_speed = 100;
+              e->is_aggressive = false; // Passive
+              e->detection_flags = DETECT_SMELL;
+              e->ai_state = AI_IDLE;
+              e->is_burrowed = false;
+              
+              map_set_occupied(&g_game.current_map, rx, ry, true);
+              
+              // Schedule first move
+              turn_add_event(100, e->id, EVENT_MOVE);
+              
+              g_game.entity_count = 1; 
+              break;
+        }
+        attempts++;
     }
 }
 
@@ -215,25 +237,40 @@ static void update_dungeon(void) {
                      int ny = e->y + dy;
                      
                      if (map_is_walkable(&g_game.current_map, nx, ny)) {
-                         e->x = nx;
-                         e->y = ny;
-                         turn_taken = true;
-                         // Smell update logic
-                         map_update_smell(&g_game.current_map, g_game.player.x, g_game.player.y);
-                         // Sound update logic (already handled by loop re-entry? no, instantaneous)
-                         map_update_sound(&g_game.current_map, g_game.player.x, g_game.player.y, 5);
-
-                         // Movement cost
-                         // Use Entity stats later
-                         turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
+                         // Check occupancy
+                         if (!map_is_occupied(&g_game.current_map, nx, ny)) {
+                             // Move
+                             map_set_occupied(&g_game.current_map, e->x, e->y, false);
+                             e->x = nx;
+                             e->y = ny;
+                             map_set_occupied(&g_game.current_map, e->x, e->y, true);
+                             
+                             turn_taken = true;
+                             // Smell update logic
+                             map_update_smell(&g_game.current_map, g_game.player.x, g_game.player.y);
+                             // Sound update logic (already handled by loop re-entry? no, instantaneous)
+                             map_update_sound(&g_game.current_map, g_game.player.x, g_game.player.y, 5);
+    
+                             // Movement cost
+                             // Use Entity stats later
+                             turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
+                         } else {
+                             // Blocked by entity?
+                             // Maybe attack?
+                             // For now, simple block log
+                             ui_log("Blocked.");
+                         }
                      }
                 }
             }
             
         } else {
             // AI Move
-            // Stub AI
-            turn_add_event(evt.time + 110, e->id, EVENT_MOVE);
+            if (e->type == ENTITY_ENEMY) {
+                ai_take_turn(e, &g_game.current_map, &g_game);
+            } else {
+                 turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
+            }
         }
     }
 }

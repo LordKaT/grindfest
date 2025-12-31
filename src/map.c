@@ -310,3 +310,17 @@ bool map_is_walkable(Map* map, int x, int y) {
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
     return map->tiles[x][y].type == TILE_FLOOR;
 }
+
+// ----------------------------------------------------------------------------
+// Occupancy
+// ----------------------------------------------------------------------------
+
+void map_set_occupied(Map* map, int x, int y, bool occupied) {
+    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return;
+    map->tiles[x][y].occupied = occupied;
+}
+
+bool map_is_occupied(Map* map, int x, int y) {
+    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return true; // Treat OOB as occupied
+    return map->tiles[x][y].occupied;
+}
