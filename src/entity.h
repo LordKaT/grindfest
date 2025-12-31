@@ -45,6 +45,28 @@ typedef enum {
 #define DETECT_SOUND (1 << 1)
 #define DETECT_SMELL (1 << 2)
 
+typedef enum {
+    KI_ADVENTURER_CERTIFICATE,
+    KI_SUBJOB_PERMIT,
+    KI_AIRSHIP_PASS,
+    KI_PALADIN_SCROLL,
+    KI_MAX
+} KeyItemType;
+
+typedef enum {
+    STATUS_NONE,
+    STATUS_PROTECT,
+    STATUS_POISON,
+    STATUS_PARALYSIS,
+    STATUS_WEAKNESS
+} StatusEffectType;
+
+typedef struct {
+    StatusEffectType type;
+    int duration; // Turns/Ticks
+    int power;    // Magnitude
+} StatusEffect;
+
 typedef struct {
     int str;
     int dex;
@@ -78,11 +100,24 @@ typedef struct {
     
     RaceType race;
 
+    // Job persistence
     JobType main_job;
     JobType sub_job; // Reserved for future
+    int current_level; // Cache of job_levels[main_job]
+    int job_levels[JOB_MAX];
+    int job_exp[JOB_MAX];
 
-    Attributes stats;
+    Attributes base_stats;    // Permanent stats
+    Attributes current_stats; // Calculated (Base + Job + Gear + Buffs)
     Resources resources;
+
+    // Progression / State
+    uint8_t key_items[KI_MAX]; // 0=Locked, 1=Owned
+    EntityID claimed_by;       // -1 if unclaimed
+    
+    // Status Effects
+    StatusEffect effects[16];
+    int effect_count;
 
     // Combat State
     bool is_engaged;
@@ -106,5 +141,11 @@ typedef struct {
     int burrow_dest_y;
 
 } Entity;
+
+// Helper Functions
+void entity_add_exp(Entity* e, int amount);
+bool entity_has_key_item(const Entity* e, KeyItemType ki);
+void entity_add_status(Entity* e, StatusEffectType type, int duration, int power);
+void entity_tick_status(Entity* e);
 
 #endif

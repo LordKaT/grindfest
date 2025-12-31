@@ -34,7 +34,7 @@ void combat_disengage(Entity* attacker) {
 void combat_execute_auto_attack(Entity* attacker, Entity* target) {
     if (!attacker || !target) return;
     
-    int damage = (attacker->stats.str > 0 ? attacker->stats.str : 10) + attacker->weapon_damage;
+    int damage = (attacker->current_stats.str > 0 ? attacker->current_stats.str : 10) + attacker->weapon_damage;
     // Stub calculation
     
     target->resources.hp -= damage;

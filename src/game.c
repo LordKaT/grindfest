@@ -33,6 +33,19 @@ void game_init(void) {
     g_game.player.resources.max_tp = 3000;
     g_game.player.is_active = true;
     
+    // Persistence Init
+    g_game.player.claimed_by = -1;
+    g_game.player.main_job = JOB_WARRIOR;
+    g_game.player.job_levels[JOB_WARRIOR] = 1;
+    g_game.player.current_level = 1;
+    g_game.player.job_exp[JOB_WARRIOR] = 0;
+    
+    // Stats (Stub values)
+    g_game.player.base_stats.str = 10;
+    g_game.player.base_stats.dex = 10;
+    g_game.player.base_stats.vit = 10;
+    g_game.player.current_stats = g_game.player.base_stats;
+    
     // Generate Dungeon first to ensure floors exist
     map_generate_dungeon(&g_game.current_map);
 
@@ -74,6 +87,13 @@ void game_init(void) {
               e->detection_flags = DETECT_SMELL;
               e->ai_state = AI_IDLE;
               e->is_burrowed = false;
+              
+              // Persistence
+              e->claimed_by = -1;
+              e->current_level = 4;
+              e->job_levels[e->main_job] = 4;
+              e->base_stats.str = 8;
+              e->current_stats = e->base_stats;
               
               map_set_occupied(&g_game.current_map, rx, ry, true);
               
@@ -139,6 +159,11 @@ static void update_dungeon(void) {
     GameEvent evt = turn_pop_event();
     Entity* e = game_get_entity(evt.entity_id);
     if (!e) return; // Entity might have died/vanished
+    
+    if (evt.type == EVENT_MOVE) {
+         // Tick Status Effects whenever a move turn comes up
+         entity_tick_status(e);
+    }
 
     if (evt.type == EVENT_ATTACK_READY) {
         // Process Auto Attack
