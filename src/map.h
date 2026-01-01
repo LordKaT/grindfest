@@ -34,6 +34,7 @@ typedef struct {
 
 // Map Gen
 void map_generate_dungeon(Map* map);
+void map_load_static(Map* map, const char* filename);
 bool map_is_walkable(Map* map, int x, int y);
 
 // Occupancy

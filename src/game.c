@@ -142,7 +142,8 @@ static void update_start_menu(void) {
 typedef enum {
     CREATOR_STEP_NAME,
     CREATOR_STEP_RACE,
-    CREATOR_STEP_JOB
+    CREATOR_STEP_JOB,
+    CREATOR_STEP_NATION
 } CreatorStep;
 
 static CreatorStep creator_step = CREATOR_STEP_NAME;
@@ -153,6 +154,9 @@ static const char* RACE_NAMES[] = {
 };
 static const char* JOB_NAMES[] = {
     "Warrior", "Monk", "Thief", "Black Mage", "White Mage", "Red Mage"
+};
+static const char* NATION_NAMES[] = {
+    "Bastok", "San d'Oria", "Windurst"
 };
 
 // Descriptions
@@ -170,7 +174,14 @@ static const char* JOB_DESC[] = {
     "Agile fighter. High Evasion and Dex.",
     "Offensive magic. Bursts of high damage.",
     "Healer. Keeps the party alive.",
+    "Healer. Keeps the party alive.",
     "Jack of all trades. Sword and Sorcery."
+};
+
+static const char* NATION_DESC[] = {
+    "Industrial republic. Home of the Humes and Galka.",
+    "Kingdom of knights. Home of Elvaan.",
+    "Federation of magic. Home of Tarutaru and Mithra."
 };
 
 
@@ -238,8 +249,55 @@ static void update_char_creator(void) {
         } else if (res.type == INPUT_ACTION_CONFIRM) {
             g_game.player.main_job = (JobType)creator_selection;
             
+            // Go to Nation
+            creator_step = CREATOR_STEP_NATION;
+            creator_selection = 0;
+        }
+    }
+    else if (creator_step == CREATOR_STEP_NATION) {
+          ui_render_creator_menu(
+            "Select Nation",
+            NATION_NAMES, 3,
+            creator_selection, 
+            NATION_DESC[creator_selection]
+        );
+
+        char dummy[10];
+        InputResult res; 
+        int key = ui_get_input(dummy, 10);
+        res = input_handle_key(key);
+        
+        if (res.type == INPUT_ACTION_MOVE_UP) {
+            creator_selection--;
+            if (creator_selection < 0) creator_selection = 2;
+        } else if (res.type == INPUT_ACTION_MOVE_DOWN) {
+            creator_selection++;
+            if (creator_selection > 2) creator_selection = 0;
+        } else if (res.type == INPUT_ACTION_CONFIRM) {
+            // 1. Set Nation (Map to enum: 0->Bastok, 1->San d'Oria, 2->Windurst)
+            // Enum: NONE=0, BASTOK=1, SANDORIA=2, WINDURST=3
+            g_game.player.nation = (NationType)(creator_selection + 1);
+            
+            // 2. Finalize Stats
             entity_init_stats(&g_game.player, g_game.player.race, g_game.player.main_job);
             
+            // 3. Load Map
+            if (g_game.player.nation == NATION_BASTOK) {
+                map_load_static(&g_game.current_map, "data/maps/bastok.map");
+            } else if (g_game.player.nation == NATION_SANDORIA) {
+                map_load_static(&g_game.current_map, "data/maps/sandoria.map");
+            } else {
+                map_load_static(&g_game.current_map, "data/maps/windurst.map");
+            }
+            
+            // 4. Set Spawn (27, 8)
+            g_game.player.x = 27;
+            g_game.player.y = 8;
+            map_set_occupied(&g_game.current_map, 27, 8, true);
+            
+            // 5. Initial FOV
+            map_compute_fov(&g_game.current_map, g_game.player.x, g_game.player.y, 8);
+
             // Transition
             ui_set_layout(UI_LAYOUT_GAME);
             g_game.current_state = STATE_DUNGEON_LOOP;
@@ -248,6 +306,7 @@ static void update_char_creator(void) {
             turn_add_event(0, g_game.player.id, EVENT_MOVE);
         }
     }
+
 }
 
 
@@ -458,8 +517,8 @@ static void update_menu_loop(void) {
     ui_refresh();
     
     // 2. Input
-    char buf[256] = {0};
-    int key = ui_get_input(buf, 256);
+    char buf[10];
+    int key = ui_get_input(buf, 10);
     
     InputResult res = input_handle_key(key);
     

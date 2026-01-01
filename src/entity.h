@@ -29,6 +29,15 @@ typedef enum {
     RACE_MAX
 } RaceType;
 
+typedef enum {
+    NATION_NONE,
+    NATION_BASTOK,
+    NATION_SANDORIA,
+    NATION_WINDURST,
+    NATION_MONSTER,
+    NATION_MAX,
+} NationType;
+
 #define IS_PLAYER_RACE(x) (x >= RACE_HUME && x <= RACE_GALKA)
 
 typedef enum {
@@ -104,6 +113,7 @@ typedef struct {
     int color_pair;
     
     RaceType race;
+    NationType nation;
 
     // Job persistence
     JobType main_job;

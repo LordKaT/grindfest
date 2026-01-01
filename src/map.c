@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h> // for logging/debug if needed
 #include <math.h>
+#include <string.h>
 #include "map.h"
 
 
@@ -79,6 +80,79 @@ void map_generate_dungeon(Map* map) {
     }
     
     // 4. Connectivity Check (Flood Fill) - Implicitly handled by Drunken Walk
+}
+
+void main_cleanup(void); // Forward declaration to allow abort logic? Better to just exit(1) for fatal error
+
+// Static Map Loader
+void map_load_static(Map* map, const char* filename) {
+    FILE* f = fopen(filename, "r");
+    if (!f) {
+        // Fallback or Fatal?
+        // ui_log("Error loading map: %s", filename); // UI might not be ready or relevant
+        fprintf(stderr, "FATAL: Could not open map file: %s\n", filename);
+        exit(1);
+    }
+    
+    char line[256];
+    bool in_terrain = false;
+    int y = 0;
+    
+    // Clear map first
+    for(int i=0; i<MAP_WIDTH; i++) {
+        for(int j=0; j<MAP_HEIGHT; j++) {
+            map->tiles[i][j].type = TILE_VOID; // or WALL
+            map->tiles[i][j].visible = false;
+            map->tiles[i][j].explored = false;
+            map->tiles[i][j].occupied = false;
+            map->smell[i][j] = 0;
+            map->sound[i][j] = SOUND_NONE;
+        }
+    }
+
+    while (fgets(line, sizeof(line), f)) {
+        // Strip newline
+        line[strcspn(line, "\r\n")] = 0;
+        
+        if (strlen(line) == 0) continue;
+        if (line[0] == '%') continue; // Comment
+        
+        if (strncmp(line, "meta:width=", 11) == 0) {
+            int w = atoi(line + 11);
+            if (w != MAP_WIDTH) {
+                fprintf(stderr, "FATAL: Map width mismatch. Expected %d, got %d in %s\n", MAP_WIDTH, w, filename);
+                fclose(f);
+                exit(1);
+            }
+        } else if (strncmp(line, "meta:height=", 12) == 0) {
+            int h = atoi(line + 12);
+             if (h != MAP_HEIGHT) {
+                fprintf(stderr, "FATAL: Map height mismatch. Expected %d, got %d in %s\n", MAP_HEIGHT, h, filename);
+                fclose(f);
+                exit(1);
+            }
+        } else if (strcmp(line, "layer:terrain") == 0) {
+            in_terrain = true;
+            continue;
+        }
+        
+        if (in_terrain) {
+            if (y >= MAP_HEIGHT) continue; // Safety
+            
+            for (int x = 0; x < MAP_WIDTH && line[x] != 0; x++) {
+                if (line[x] == '#') {
+                    map->tiles[x][y].type = TILE_WALL;
+                } else if (line[x] == '.') {
+                    map->tiles[x][y].type = TILE_FLOOR;
+                } else {
+                    map->tiles[x][y].type = TILE_FLOOR; // Fallback
+                }
+            }
+            y++;
+        }
+    }
+    
+    fclose(f);
 }
 
 // Field of View (Recursive Shadowcasting)
