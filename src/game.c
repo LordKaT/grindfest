@@ -18,7 +18,10 @@ void game_init(void) {
     g_game.render_mode = RENDER_MODE_NORMAL;
     
     // Init modules
-    ui_init();
+    ui_init(); // Needs layout
+    ui_set_layout(UI_LAYOUT_GAME); // Default, but title screen might use another?
+    // Actually title uses UI_LAYOUT_GAME for now or we switch later.
+    
     turn_init();
     
     // Stub player init
@@ -30,15 +33,10 @@ void game_init(void) {
     g_game.player.resources.max_hp = 100;
     g_game.player.resources.tp = 0;
     g_game.player.resources.max_tp = 3000;
-    g_game.player.resources.max_tp = 3000;
     g_game.player.is_active = true;
     
     // Persistence Init
     g_game.player.claimed_by = -1;
-    g_game.player.main_job = JOB_WARRIOR;
-    g_game.player.job_levels[JOB_WARRIOR] = 1;
-    g_game.player.current_level = 1;
-    g_game.player.job_exp[JOB_WARRIOR] = 0;
     
     // Stats (Stub values)
     g_game.player.base_stats.str = 10;
@@ -46,14 +44,14 @@ void game_init(void) {
     g_game.player.base_stats.vit = 10;
     g_game.player.current_stats = g_game.player.base_stats;
     
-    // Generate Dungeon first to ensure floors exist
-    map_generate_dungeon(&g_game.current_map);
+    // Map generation happens later (in Nation Select or Game Start)
 
+    /*
     // Place Player on random floor
     int placed = 0;
     while(!placed) {
-        int rx = rand() % MAP_WIDTH;
-        int ry = rand() % MAP_HEIGHT;
+        int rx = rand() % g_game.current_map.width;
+        int ry = rand() % g_game.current_map.height;
         if (map_is_walkable(&g_game.current_map, rx, ry) && !map_is_occupied(&g_game.current_map, rx, ry)) {
             g_game.player.x = rx;
             g_game.player.y = ry;
@@ -61,50 +59,11 @@ void game_init(void) {
             placed = 1;
         }
     }
+    */
     
-    // Spawn Worm
-    g_game.entity_count = 1; // 0 is player
-    int attempts = 0;
-    while (attempts < 50) {
-        int rx = rand() % MAP_WIDTH;
-        int ry = rand() % MAP_HEIGHT;
-        if (map_is_walkable(&g_game.current_map, rx, ry) && !map_is_occupied(&g_game.current_map, rx, ry)) {
-              Entity* e = &g_game.entities[0]; // First enemy
-              e->id = 1;
-              e->type = ENTITY_ENEMY;
-              e->race = RACE_WORM;
-              // e->job = JOB_WORM; // JobType? Not critical if not used yet
-              strcpy(e->name, "Tunnel Worm");
-              e->symbol = 'w';
-              e->color_pair = 3; // Red
-              e->x = rx;
-              e->y = ry;
-              e->resources.hp = 100;
-              e->resources.max_hp = 100;
-              e->is_active = true;
-              e->move_speed = 100;
-              e->is_aggressive = false; // Passive
-              e->detection_flags = DETECT_SMELL;
-              e->ai_state = AI_IDLE;
-              e->is_burrowed = false;
-              
-              // Persistence
-              e->claimed_by = -1;
-              e->current_level = 4;
-              e->job_levels[e->main_job] = 4;
-              e->base_stats.str = 8;
-              e->current_stats = e->base_stats;
-              
-              map_set_occupied(&g_game.current_map, rx, ry, true);
-              
-              // Schedule first move
-              turn_add_event(100, e->id, EVENT_MOVE);
-              
-              g_game.entity_count = 1; 
-              break;
-        }
-        attempts++;
-    }
+    /* Worm Spawning Moved */
+    // Worm spawning removed from init. Mobs spawn in map transition logic.
+    g_game.entity_count = 0;
 }
 
 void game_cleanup(void) {
@@ -281,19 +240,26 @@ static void update_char_creator(void) {
             // 2. Finalize Stats
             entity_init_stats(&g_game.player, g_game.player.race, g_game.player.main_job);
             
-            // 3. Load Map
+            // 3. Load Map & Set Spawn
             if (g_game.player.nation == NATION_BASTOK) {
-                map_load_static(&g_game.current_map, "data/maps/bastok.map");
+                // OVERRIDE: Big Map Test
+                //map_load_static(&g_game.current_map, "data/maps/test_scroll.map");
+                //map_load_static(&g_game.current_map, "data/maps/bastok.map");
+                map_load_static(&g_game.current_map, "data/maps/bastok_mines.map");
+                g_game.player.x = 6;
+                g_game.player.y = 22;
             } else if (g_game.player.nation == NATION_SANDORIA) {
                 map_load_static(&g_game.current_map, "data/maps/sandoria.map");
+                g_game.player.x = 27;
+                g_game.player.y = 8;
             } else {
                 map_load_static(&g_game.current_map, "data/maps/windurst.map");
+                g_game.player.x = 27;
+                g_game.player.y = 8;
             }
             
-            // 4. Set Spawn (27, 8)
-            g_game.player.x = 27;
-            g_game.player.y = 8;
-            map_set_occupied(&g_game.current_map, 27, 8, true);
+            // 4. Occupy Spawn
+            map_set_occupied(&g_game.current_map, g_game.player.x, g_game.player.y, true);
             
             // 5. Initial FOV
             map_compute_fov(&g_game.current_map, g_game.player.x, g_game.player.y, 8);
@@ -346,8 +312,8 @@ void game_spawn_mobs(void) {
         
         // Place
         while(1) {
-            int x = rand() % MAP_WIDTH;
-            int y = rand() % MAP_HEIGHT;
+            int x = rand() % g_game.current_map.width;
+            int y = rand() % g_game.current_map.height;
             if (map_is_walkable(&g_game.current_map, x, y) && !map_is_occupied(&g_game.current_map, x, y)) {
                 e->x = x;
                 e->y = y;
@@ -373,13 +339,13 @@ void game_transition_zone(const char* target_map, int tx, int ty) {
     // 2. Load Map
     if (strcmp(target_map, "PROCEDURAL") == 0) {
         map_generate_dungeon(&g_game.current_map);
-        g_game.current_map.zone_type = ZONE_FIELD;
+        // g_game.current_map.zone_type = ZONE_FIELD;
         
         // Valid Spawn for player if tx=-1
         if (tx == -1) {
              while(1) {
-                int x = rand() % MAP_WIDTH;
-                int y = rand() % MAP_HEIGHT;
+                int x = rand() % g_game.current_map.width;
+                int y = rand() % g_game.current_map.height;
                 if (map_is_walkable(&g_game.current_map, x, y)) {
                     g_game.player.x = x;
                     g_game.player.y = y;
@@ -399,7 +365,7 @@ void game_transition_zone(const char* target_map, int tx, int ty) {
         char path[128];
         snprintf(path, sizeof(path), "data/maps/%s", target_map);
         map_load_static(&g_game.current_map, path);
-        g_game.current_map.zone_type = ZONE_CITY;
+        // g_game.current_map.zone_type = ZONE_CITY;
         
         g_game.player.x = tx;
         g_game.player.y = ty;
@@ -601,7 +567,7 @@ static void update_dungeon(void) {
                              for (int i=0; i<g_game.current_map.exit_count; i++) {
                                  MapExit* ex = &g_game.current_map.exits[i];
                                  if (e->x == ex->x && e->y == ex->y) {
-                                     game_transition_zone(ex->target_map, ex->target_x, ex->target_y);
+                                     game_transition_zone(ex->target_file, ex->target_x, ex->target_y);
                                      return; // Break frame
                                  }
                              }

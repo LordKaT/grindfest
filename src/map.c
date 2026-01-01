@@ -8,24 +8,28 @@
 void map_generate_dungeon(Map* map) {
     // Set Name
     strcpy(map->name, "Procedural Dungeon");
-
+    // Legacy / Default Size
+    map->width = 54;
+    map->height = 16;
+    
     // 1. Initialize all to WALL
-    for(int x=0; x<MAP_WIDTH; x++) {
-        for(int y=0; y<MAP_HEIGHT; y++) {
+    for(int x=0; x<map->width; x++) {
+        for(int y=0; y<map->height; y++) {
             map->tiles[x][y].type = TILE_WALL;
             map->tiles[x][y].visible = false;
             map->tiles[x][y].explored = false;
+            map->tiles[x][y].occupied = false;
             map->tiles[x][y].occupied = false;
         }
     }
 
     // 2. Drunken Walk
-    int total_cells = (MAP_WIDTH - 2) * (MAP_HEIGHT - 2);
+    int total_cells = (map->width - 2) * (map->height - 2);
     int target_floors = total_cells * 40 / 100; // 40% coverage
     int floors_count = 0;
 
-    int cx = MAP_WIDTH / 2;
-    int cy = MAP_HEIGHT / 2;
+    int cx = map->width / 2;
+    int cy = map->height / 2;
 
     int max_iters = target_floors * 10; // Safety break
     int iter = 0;
@@ -51,9 +55,9 @@ void map_generate_dungeon(Map* map) {
 
         // Clamp to border (keep 1-tile border)
         if (nx < 1) nx = 1;
-        if (nx > MAP_WIDTH - 2) nx = MAP_WIDTH - 2;
+        if (nx > map->width - 2) nx = map->width - 2;
         if (ny < 1) ny = 1;
-        if (ny > MAP_HEIGHT - 2) ny = MAP_HEIGHT - 2;
+        if (ny > map->height - 2) ny = map->height - 2;
 
         cx = nx;
         cy = ny;
@@ -64,8 +68,8 @@ void map_generate_dungeon(Map* map) {
     bool changes = true;
     while(changes) {
         changes = false;
-        for(int x=1; x<MAP_WIDTH-1; x++) {
-            for(int y=1; y<MAP_HEIGHT-1; y++) {
+        for(int x=1; x<map->width-1; x++) {
+            for(int y=1; y<map->height-1; y++) {
                 if(map->tiles[x][y].type == TILE_WALL) {
                     int neighbor_walls = 0;
                     if(map->tiles[x][y-1].type == TILE_WALL) neighbor_walls++;
@@ -102,9 +106,12 @@ void map_load_static(Map* map, const char* filename) {
     int y = 0;
     
     // Clear map first
-    for(int i=0; i<MAP_WIDTH; i++) {
-        for(int j=0; j<MAP_HEIGHT; j++) {
-            map->tiles[i][j].type = TILE_VOID; // or WALL
+    map->width = 54; // Default if not found
+    map->height = 16;
+    
+    for(int i=0; i<MAX_MAP_WIDTH; i++) {
+        for(int j=0; j<MAX_MAP_HEIGHT; j++) {
+            map->tiles[i][j].type = TILE_EMPTY; // or WALL
             map->tiles[i][j].visible = false;
             map->tiles[i][j].explored = false;
             map->tiles[i][j].occupied = false;
@@ -114,7 +121,7 @@ void map_load_static(Map* map, const char* filename) {
     }
     
     // Default to City for static maps
-    map->zone_type = ZONE_CITY;
+    // map->zone_type = ZONE_CITY;
     map->exit_count = 0;
     strcpy(map->name, "Unknown Area");
 
@@ -126,19 +133,15 @@ void map_load_static(Map* map, const char* filename) {
         if (line[0] == '%') continue; // Comment
         
         if (strncmp(line, "meta:width=", 11) == 0) {
-            int w = atoi(line + 11);
-            if (w != MAP_WIDTH) {
-                fprintf(stderr, "FATAL: Map width mismatch. Expected %d, got %d in %s\n", MAP_WIDTH, w, filename);
-                fclose(f);
-                exit(1);
-            }
+            map->width = atoi(line + 11); // Use dynamic width
+            // if (w != MAP_WIDTH) { ... }
         } else if (strncmp(line, "meta:height=", 12) == 0) {
-            int h = atoi(line + 12);
-             if (h != MAP_HEIGHT) {
+            map->height = atoi(line + 12); // Use dynamic height
+             /* if (h != MAP_HEIGHT) {
                 fprintf(stderr, "FATAL: Map height mismatch. Expected %d, got %d in %s\n", MAP_HEIGHT, h, filename);
                 fclose(f);
                 exit(1);
-            }
+            } */
         } else if (strncmp(line, "meta:name=", 10) == 0) {
             strncpy(map->name, line + 10, 63);
             map->name[63] = '\0';
@@ -154,7 +157,7 @@ void map_load_static(Map* map, const char* filename) {
                 char file_buf[64] = {0};
                 sscanf(line, "exit:x=%d,y=%d,file=%63[^,],tx=%d,ty=%d", 
                        &e->x, &e->y, file_buf, &e->target_x, &e->target_y);
-                strcpy(e->target_map, file_buf);
+                strcpy(e->target_file, file_buf);
             }
         } else if (strcmp(line, "layer:terrain") == 0) {
             in_terrain = true;
@@ -162,9 +165,9 @@ void map_load_static(Map* map, const char* filename) {
         }
         
         if (in_terrain) {
-            if (y >= MAP_HEIGHT) continue; // Safety
+            if (y >= map->height) continue; // Safety
             
-            for (int x = 0; x < MAP_WIDTH && line[x] != 0; x++) {
+            for (int x = 0; x < map->width && line[x] != 0; x++) {
                 if (line[x] == '#') {
                     map->tiles[x][y].type = TILE_WALL;
                 } else if (line[x] == '.') {
@@ -185,14 +188,14 @@ void map_load_static(Map* map, const char* filename) {
 // Raycasting fallback (Simple, robust)
 void map_compute_fov(Map* map, int px, int py, int radius) {
     // 1. Reset visibility
-    for (int x = 0; x < MAP_WIDTH; x++) {
-        for (int y = 0; y < MAP_HEIGHT; y++) {
+    for (int x = 0; x < map->width; x++) {
+        for (int y = 0; y < map->height; y++) {
             map->tiles[x][y].visible = false;
         }
     }
     
     // 2. Mark player tile visible
-    if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT) {
+    if (px >= 0 && px < map->width && py >= 0 && py < map->height) {
         map->tiles[px][py].visible = true;
         map->tiles[px][py].explored = true;
     }
@@ -218,7 +221,7 @@ void map_compute_fov(Map* map, int px, int py, int radius) {
                 int tx = (int)curX;
                 int ty = (int)curY;
                 
-                if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) break;
+                if (tx < 0 || tx >= map->width || ty < 0 || ty >= map->height) break;
                 
                 // Distance check
                 if ((tx-px)*(tx-px) + (ty-py)*(ty-py) > radius*radius) break;
@@ -248,7 +251,7 @@ void map_compute_fov(Map* map, int px, int py, int radius) {
                 int tx = (int)curX;
                 int ty = (int)curY;
                 
-                if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) break;
+                if (tx < 0 || tx >= map->width || ty < 0 || ty >= map->height) break;
                 
                 // Distance check
                 if ((tx-px)*(tx-px) + (ty-py)*(ty-py) > radius*radius) break;
@@ -271,8 +274,8 @@ void map_compute_fov(Map* map, int px, int py, int radius) {
 
 void map_update_smell(Map* map, int px, int py) {
     // 1. Global Decay
-    for(int x=0; x<MAP_WIDTH; x++) {
-        for(int y=0; y<MAP_HEIGHT; y++) {
+    for(int x=0; x<map->width; x++) {
+        for(int y=0; y<map->height; y++) {
             if (map->smell[x][y] > 30) 
                  map->smell[x][y] -= 30;
             else 
@@ -281,23 +284,23 @@ void map_update_smell(Map* map, int px, int py) {
     }
 
     // 2. Source (Player)
-    if (px >= 0 && px < MAP_WIDTH && py >= 0 && py < MAP_HEIGHT) {
+    if (px >= 0 && px < map->width && py >= 0 && py < map->height) {
         map->smell[px][py] = 255;
     }
 
     // 3. Diffusion Pass (using temp buffer to avoid directional bias)
-    uint8_t next_smell[MAP_WIDTH][MAP_HEIGHT];
+    uint8_t next_smell[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];
     // Copy current state
-    for(int x=0; x<MAP_WIDTH; x++) {
-        for(int y=0; y<MAP_HEIGHT; y++) {
+    for(int x=0; x<map->width; x++) {
+        for(int y=0; y<map->height; y++) {
             next_smell[x][y] = map->smell[x][y];
         }
     }
 
     uint8_t drop_off = 80; // Diffusion loss
 
-    for(int x=1; x<MAP_WIDTH-1; x++) {
-        for(int y=1; y<MAP_HEIGHT-1; y++) {
+    for(int x=1; x<map->width-1; x++) {
+        for(int y=1; y<map->height-1; y++) {
             if (map->tiles[x][y].type == TILE_WALL) continue; // Walls don't diffuse
 
             // Check neighbors
@@ -322,8 +325,8 @@ void map_update_smell(Map* map, int px, int py) {
     }
 
     // Apply back
-    for(int x=0; x<MAP_WIDTH; x++) {
-        for(int y=0; y<MAP_HEIGHT; y++) {
+    for(int x=0; x<map->width; x++) {
+        for(int y=0; y<map->height; y++) {
             map->smell[x][y] = next_smell[x][y];
         }
     }
@@ -338,22 +341,22 @@ typedef struct {
 
 void map_update_sound(Map* map, int px, int py, int radius) {
     // 1. Reset
-    for(int x=0; x<MAP_WIDTH; x++) {
-        for(int y=0; y<MAP_HEIGHT; y++) {
+    for(int x=0; x<map->width; x++) {
+        for(int y=0; y<map->height; y++) {
             map->sound[x][y] = SOUND_NONE;
         }
     }
 
-    if (px < 0 || px >= MAP_WIDTH || py < 0 || py >= MAP_HEIGHT) return;
+    if (px < 0 || px >= map->width || py < 0 || py >= map->height) return;
 
     // BFS
     // Max queue size = map size (overkill but safe stack usage)
     // Actually stack might be small? 54*16 = 864 structs. 
     // Struct is ~16 bytes. 13KB. Safe for stack.
-    SoundNode queue[MAP_WIDTH * MAP_HEIGHT];
+    SoundNode queue[MAX_MAP_WIDTH * MAX_MAP_HEIGHT];
     int head = 0;
     int tail = 0;
-    bool visited[MAP_WIDTH][MAP_HEIGHT] = {false};
+    bool visited[MAX_MAP_WIDTH][MAX_MAP_HEIGHT] = {false};
 
     queue[tail++] = (SoundNode){px, py, 0, 0};
     visited[px][py] = true;
@@ -370,7 +373,7 @@ void map_update_sound(Map* map, int px, int py, int radius) {
             int nx = curr.x + dirs[i][0];
             int ny = curr.y + dirs[i][1];
 
-            if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue;
+            if (nx < 0 || nx >= map->width || ny < 0 || ny >= map->height) continue;
             if (visited[nx][ny]) continue;
 
             // Wall check
@@ -396,17 +399,17 @@ void map_update_sound(Map* map, int px, int py, int radius) {
 }
 
 bool map_is_smelly(const Map* map, int x, int y) {
-     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
+     if (x < 0 || x >= map->width || y < 0 || y >= map->height) return false;
      return map->smell[x][y] > 0;
 }
 
 SoundState map_sound_at(const Map* map, int x, int y) {
-     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return SOUND_NONE;
+     if (x < 0 || x >= map->width || y < 0 || y >= map->height) return SOUND_NONE;
      return map->sound[x][y];
 }
 
 bool map_is_walkable(Map* map, int x, int y) {
-    if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
+    if (x < 0 || x >= map->width || y < 0 || y >= map->height) return false;
     return map->tiles[x][y].type == TILE_FLOOR;
 }
 
@@ -415,11 +418,11 @@ bool map_is_walkable(Map* map, int x, int y) {
 // ----------------------------------------------------------------------------
 
 void map_set_occupied(Map* map, int x, int y, bool occupied) {
-    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return;
+    if (x < 0 || y < 0 || x >= map->width || y >= map->height) return;
     map->tiles[x][y].occupied = occupied;
 }
 
 bool map_is_occupied(Map* map, int x, int y) {
-    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return true; // Treat OOB as occupied
+    if (x < 0 || y < 0 || x >= map->width || y >= map->height) return true; // Treat OOB as occupied
     return map->tiles[x][y].occupied;
 }

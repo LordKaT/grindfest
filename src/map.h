@@ -4,49 +4,48 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MAP_WIDTH 54
-#define MAP_HEIGHT 16
+#define MAX_MAP_WIDTH 256
+#define MAX_MAP_HEIGHT 256
 
 typedef enum {
-    TILE_WALL,
+    TILE_EMPTY = 0,
     TILE_FLOOR,
-    TILE_VOID
+    TILE_WALL,
+    TILE_DOOR
 } TileType;
 
 typedef struct {
     TileType type;
-    bool visible;   // Currently in FOV
-    bool explored;  // Seen before (fog of war)
-    bool occupied;  // Is an entity standing here?
+    bool visible;   // In FOV
+    bool explored;  // Seen before
+    bool seen;      // (Legacy/Transient)
+    bool occupied;
 } Tile;
 
-typedef enum {
-    SOUND_NONE,
-    SOUND_CLEAR,
-    SOUND_MUFFLED
-} SoundState;
-
-typedef enum {
-    ZONE_CITY,
-    ZONE_FIELD
-} ZoneType;
-
+// Zoning Metadata
 typedef struct {
     int x, y;
-    char target_map[64];
+    char target_file[64];
     int target_x, target_y;
 } MapExit;
 
+typedef enum {
+    SOUND_NONE = 0,
+    SOUND_CLEAR = 1,
+    SOUND_MUFFLED = 2
+} SoundState;
+
 typedef struct {
-    Tile tiles[MAP_WIDTH][MAP_HEIGHT];
-    uint8_t smell[MAP_WIDTH][MAP_HEIGHT]; // 0-255 smell value
-    SoundState sound[MAP_WIDTH][MAP_HEIGHT]; // Sound Propagation state
+    char name[64];
+    int width;
+    int height;
     
-    ZoneType zone_type;
+    Tile tiles[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];
+    int smell[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];    // 0 = None, 255 = Fresh
+    SoundState sound[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];
+    
     MapExit exits[16];
     int exit_count;
-    
-    char name[64];
 } Map;
 
 // Map Gen

@@ -158,7 +158,7 @@ static cchar_t* get_wall_glyph(int mask) {
 }
 
 static bool tile_is_known_wall(const Map* map, int x, int y) {
-    if (x < 0 || y < 0 || x >= layout_map_width || y >= MAP_HEIGHT) return false;
+    if (x < 0 || y < 0 || x >= map->width || y >= map->height) return false;
     const Tile* t = &map->tiles[x][y];
     if (!(t->visible || t->explored)) return false;
     return t->type == TILE_WALL;
@@ -184,17 +184,52 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
 
     scrollok(win_map, FALSE);
 
-    // Draw Map
-    for (int y = 0; y < MAP_HEIGHT; y++) {
-        for (int x = 0; x < layout_map_width && x < MAP_WIDTH; x++) {
-             // Draw at y+1 to account for Title Bar
-            int win_y = y + 1;
-            if (win_y >= MAP_VIEW_HEIGHT) continue;
-            
+    // Camera Calculation
+    int cam_x = player->x - (layout_map_width / 2);
+    int cam_y = player->y - (MAP_VIEW_HEIGHT / 2);
+
+    // Clamping
+    int max_cam_x = map->width - layout_map_width;
+    int max_cam_y = map->height - MAP_VIEW_HEIGHT;
+
+    if (max_cam_x < 0) max_cam_x = 0;
+    if (max_cam_y < 0) max_cam_y = 0;
+
+    if (cam_x < 0) cam_x = 0;
+    if (cam_y < 0) cam_y = 0;
+    if (cam_x > max_cam_x) cam_x = max_cam_x;
+    if (cam_y > max_cam_y) cam_y = max_cam_y;
+
+    // Draw Map (Viewport Loop)
+    for (int vy = 0; vy < MAP_VIEW_HEIGHT; vy++) {
+        // Map Y coordinate
+        int y = cam_y + vy;
+        
+        // Window Y (account for title bar offset +1)
+        // Wait, title bar is at 0. Map starts at 1.
+        // But MAP_VIEW_HEIGHT includes the title bar row?
+        // No, MAP_VIEW_HEIGHT is the total height of the window (17).
+        // If we draw map rows 0..15 (16 rows) starting at win_y 1..16.
+        // We should loop vy from 0 to MAP_VIEW_HEIGHT - 2 ? (Total 16 lines).
+        
+        // Let's stick to the previous logic:
+        // win_y = vy + 1. If win_y >= MAP_VIEW_HEIGHT continue.
+        // But previously 'y' was the map coordinate.
+        // Now 'vy' is viewport relative map offset.
+        
+        int win_y = vy + 1;
+        if (win_y >= MAP_VIEW_HEIGHT) continue;
+        if (y >= map->height) continue;
+
+        for (int vx = 0; vx < layout_map_width; vx++) {
+            // Map X coordinate
+            int x = cam_x + vx;
+            if (x >= map->width) continue;
+
             // Render Mode Logic
             if (mode == RENDER_MODE_SMELL) {
                  if (map->tiles[x][y].type == TILE_WALL) {
-                     // Draw walls normally (can delegate to normal logic or dup)
+                     // Draw walls normally
                  } else {
                      // Floor
                      int smell = map->smell[x][y];
@@ -202,9 +237,8 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                      attr_t attrs = A_NORMAL;
                      
                      if (smell == 0) {
-                         // Normal floor
                          wattr_set(win_map, A_NORMAL, 2, NULL);
-                         mvwaddch(win_map, win_y, x, '.');
+                         mvwaddch(win_map, win_y, vx, '.');
                          continue;
                      } 
                      
@@ -212,7 +246,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                      else if (smell < 64) attrs = A_DIM;
                      
                      wattr_set(win_map, attrs, color, NULL);
-                     mvwadd_wch(win_map, win_y, x, WACS_BLOCK);
+                     mvwadd_wch(win_map, win_y, vx, WACS_BLOCK);
                      continue;
                  }
             }
@@ -223,36 +257,31 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                     SoundState sound = map->sound[x][y];
                     if (sound == SOUND_CLEAR) {
                         wattr_set(win_map, A_BOLD, 5, NULL); // Blue
-                        mvwadd_wch(win_map, win_y, x, WACS_BLOCK);
+                        mvwadd_wch(win_map, win_y, vx, WACS_BLOCK);
                         continue;
                     } else if (sound == SOUND_MUFFLED) {
                         wattr_set(win_map, A_DIM, 6, NULL); // Cyan
-                        mvwadd_wch(win_map, win_y, x, WACS_CKBOARD);
+                        mvwadd_wch(win_map, win_y, vx, WACS_CKBOARD);
                         continue;
                     } else {
-                         // Normal floor
                          wattr_set(win_map, A_NORMAL, 2, NULL);
-                         mvwaddch(win_map, win_y, x, '.');
+                         mvwaddch(win_map, win_y, vx, '.');
                          continue;
                     }
                 }
             }
 
             // Normal / Fallback Rendering
-            // Visibility Check
             bool visible = map->tiles[x][y].visible;
             bool explored = map->tiles[x][y].explored;
             
-            // If in debug mode, do we ignore FOV? 
-            // The prompt says "We need to verify these invisible layers work." 
-            // Usually debug modes bypass FOV.
             if (mode != RENDER_MODE_NORMAL) {
                 visible = true; 
                 explored = true;
             }
 
             if (!visible && !explored) {
-                mvwaddch(win_map, win_y, x, ' ');
+                mvwaddch(win_map, win_y, vx, ' ');
                 continue;
             }
 
@@ -260,28 +289,26 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
             attr_t attrs = A_NORMAL;
             
             if (!visible && explored) {
-                attrs |= A_DIM; // Dim for explored but out of sight
+                attrs |= A_DIM; 
             }
 
             wattr_set(win_map, attrs, color, NULL); 
             
             if (map->tiles[x][y].type == TILE_FLOOR) {
-                mvwaddch(win_map, win_y, x, '.');
+                mvwaddch(win_map, win_y, vx, '.');
             } 
             else if (map->tiles[x][y].type == TILE_WALL) {
                 int mask = wall_mask_at(map, x, y);
                 cchar_t* wglyph = get_wall_glyph(mask);
                 
                 if (wglyph) {
-                    mvwadd_wch(win_map, win_y, x, wglyph);
+                    mvwadd_wch(win_map, win_y, vx, wglyph);
                 } else {
-                    // Fallback
-                     mvwaddch(win_map, win_y, x, '#'); 
+                     mvwaddch(win_map, win_y, vx, '#'); 
                 }
             } else {
-                 mvwaddch(win_map, win_y, x, ' '); 
+                 mvwaddch(win_map, win_y, vx, ' '); 
             }
-            // Reset for safety (though loop sets it next time)
             wattr_set(win_map, A_NORMAL, 0, NULL);
         }
     }
@@ -292,24 +319,34 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
         if (entities[i].id == player->id) continue;
         if (entities[i].is_burrowed) continue;
         
-        // FOV check for entities
+        // Cull
+        int screen_x = entities[i].x - cam_x;
+        int screen_y = entities[i].y - cam_y;
+        
+        if (screen_x < 0 || screen_x >= layout_map_width) continue;
+        if (screen_y < 0) continue; // Check later against viewport height
+
         if (!map->tiles[entities[i].x][entities[i].y].visible) continue;
         
-        // Offset for title bar
-        int win_y = entities[i].y + 1;
+        int win_y = screen_y + 1;
         if (win_y >= MAP_VIEW_HEIGHT) continue;
 
         wattron(win_map, COLOR_PAIR(entities[i].color_pair));
-        mvwaddch(win_map, win_y, entities[i].x, entities[i].symbol);
+        mvwaddch(win_map, win_y, screen_x, entities[i].symbol);
         wattroff(win_map, COLOR_PAIR(entities[i].color_pair));
     }
     
-    // 3. Render Player (Always visible if game is running, or map->visible check)
+    // 3. Render Player
     if (player->is_active) {
-        int win_y = player->y + 1;
-        if (win_y < MAP_VIEW_HEIGHT) {
+        int screen_x = player->x - cam_x;
+        int screen_y = player->y - cam_y;
+        
+        // Should be center typically, but clamped at edges
+        
+        int win_y = screen_y + 1;
+        if (win_y < MAP_VIEW_HEIGHT && screen_x >= 0 && screen_x < layout_map_width) {
             wattron(win_map, COLOR_PAIR(player->color_pair));
-            mvwaddch(win_map, win_y, player->x, player->symbol);
+            mvwaddch(win_map, win_y, screen_x, player->symbol);
             wattroff(win_map, COLOR_PAIR(player->color_pair));
         }
     }
