@@ -6,6 +6,9 @@
 
 
 void map_generate_dungeon(Map* map) {
+    // Set Name
+    strcpy(map->name, "Procedural Dungeon");
+
     // 1. Initialize all to WALL
     for(int x=0; x<MAP_WIDTH; x++) {
         for(int y=0; y<MAP_HEIGHT; y++) {
@@ -113,6 +116,7 @@ void map_load_static(Map* map, const char* filename) {
     // Default to City for static maps
     map->zone_type = ZONE_CITY;
     map->exit_count = 0;
+    strcpy(map->name, "Unknown Area");
 
     while (fgets(line, sizeof(line), f)) {
         // Strip newline
@@ -135,6 +139,9 @@ void map_load_static(Map* map, const char* filename) {
                 fclose(f);
                 exit(1);
             }
+        } else if (strncmp(line, "meta:name=", 10) == 0) {
+            strncpy(map->name, line + 10, 63);
+            map->name[63] = '\0';
         } else if (strncmp(line, "exit:", 5) == 0) {
             // Format: exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1
             // Simple parsing assuming strict format or robust enough

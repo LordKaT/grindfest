@@ -18,8 +18,8 @@
 static int layout_map_width = 54;
 static int layout_panel_width = 26;
 // Heights are constant for now
-#define MAP_VIEW_HEIGHT 16
-#define LOG_HEIGHT 7
+#define MAP_VIEW_HEIGHT 17
+#define LOG_HEIGHT 6
 #define INPUT_HEIGHT 1
 #define PANEL_HEIGHT 24
 
@@ -175,11 +175,21 @@ static int wall_mask_at(const Map* map, int x, int y) {
 
 void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count, RenderMode mode) {
     // Basic rendering 
+    wclear(win_map);
+
+    // Draw Title Bar
+    wattron(win_map, A_BOLD);
+    mvwprintw(win_map, 0, 0, "[ %s ]", map->name);
+    wattroff(win_map, A_BOLD);
+
     scrollok(win_map, FALSE);
 
     // Draw Map
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < layout_map_width && x < MAP_WIDTH; x++) {
+             // Draw at y+1 to account for Title Bar
+            int win_y = y + 1;
+            if (win_y >= MAP_VIEW_HEIGHT) continue;
             
             // Render Mode Logic
             if (mode == RENDER_MODE_SMELL) {
@@ -194,7 +204,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                      if (smell == 0) {
                          // Normal floor
                          wattr_set(win_map, A_NORMAL, 2, NULL);
-                         mvwaddch(win_map, y, x, '.');
+                         mvwaddch(win_map, win_y, x, '.');
                          continue;
                      } 
                      
@@ -202,7 +212,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                      else if (smell < 64) attrs = A_DIM;
                      
                      wattr_set(win_map, attrs, color, NULL);
-                     mvwadd_wch(win_map, y, x, WACS_BLOCK);
+                     mvwadd_wch(win_map, win_y, x, WACS_BLOCK);
                      continue;
                  }
             }
@@ -213,16 +223,16 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                     SoundState sound = map->sound[x][y];
                     if (sound == SOUND_CLEAR) {
                         wattr_set(win_map, A_BOLD, 5, NULL); // Blue
-                        mvwadd_wch(win_map, y, x, WACS_BLOCK);
+                        mvwadd_wch(win_map, win_y, x, WACS_BLOCK);
                         continue;
                     } else if (sound == SOUND_MUFFLED) {
                         wattr_set(win_map, A_DIM, 6, NULL); // Cyan
-                        mvwadd_wch(win_map, y, x, WACS_CKBOARD);
+                        mvwadd_wch(win_map, win_y, x, WACS_CKBOARD);
                         continue;
                     } else {
                          // Normal floor
                          wattr_set(win_map, A_NORMAL, 2, NULL);
-                         mvwaddch(win_map, y, x, '.');
+                         mvwaddch(win_map, win_y, x, '.');
                          continue;
                     }
                 }
@@ -242,7 +252,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
             }
 
             if (!visible && !explored) {
-                mvwaddch(win_map, y, x, ' ');
+                mvwaddch(win_map, win_y, x, ' ');
                 continue;
             }
 
@@ -256,20 +266,20 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
             wattr_set(win_map, attrs, color, NULL); 
             
             if (map->tiles[x][y].type == TILE_FLOOR) {
-                mvwaddch(win_map, y, x, '.');
+                mvwaddch(win_map, win_y, x, '.');
             } 
             else if (map->tiles[x][y].type == TILE_WALL) {
                 int mask = wall_mask_at(map, x, y);
                 cchar_t* wglyph = get_wall_glyph(mask);
                 
                 if (wglyph) {
-                    mvwadd_wch(win_map, y, x, wglyph);
+                    mvwadd_wch(win_map, win_y, x, wglyph);
                 } else {
                     // Fallback
-                     mvwaddch(win_map, y, x, ' '); 
+                     mvwaddch(win_map, win_y, x, '#'); 
                 }
             } else {
-                 mvwaddch(win_map, y, x, ' '); 
+                 mvwaddch(win_map, win_y, x, ' '); 
             }
             // Reset for safety (though loop sets it next time)
             wattr_set(win_map, A_NORMAL, 0, NULL);
@@ -285,18 +295,23 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
         // FOV check for entities
         if (!map->tiles[entities[i].x][entities[i].y].visible) continue;
         
-        // Entities should also be hidden if not visible!
-        
+        // Offset for title bar
+        int win_y = entities[i].y + 1;
+        if (win_y >= MAP_VIEW_HEIGHT) continue;
+
         wattron(win_map, COLOR_PAIR(entities[i].color_pair));
-        mvwaddch(win_map, entities[i].y, entities[i].x, entities[i].symbol);
+        mvwaddch(win_map, win_y, entities[i].x, entities[i].symbol);
         wattroff(win_map, COLOR_PAIR(entities[i].color_pair));
     }
     
     // 3. Render Player (Always visible if game is running, or map->visible check)
     if (player->is_active) {
-        wattron(win_map, COLOR_PAIR(player->color_pair));
-        mvwaddch(win_map, player->y, player->x, player->symbol);
-        wattroff(win_map, COLOR_PAIR(player->color_pair));
+        int win_y = player->y + 1;
+        if (win_y < MAP_VIEW_HEIGHT) {
+            wattron(win_map, COLOR_PAIR(player->color_pair));
+            mvwaddch(win_map, win_y, player->x, player->symbol);
+            wattroff(win_map, COLOR_PAIR(player->color_pair));
+        }
     }
 }
 

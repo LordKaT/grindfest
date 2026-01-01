@@ -1,5 +1,6 @@
 meta:width=54
 meta:height=16
+meta:name=South San d'Oria
 % San d'Oria
 exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1
 layer:terrain

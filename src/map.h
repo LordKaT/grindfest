@@ -45,6 +45,8 @@ typedef struct {
     ZoneType zone_type;
     MapExit exits[16];
     int exit_count;
+    
+    char name[64];
 } Map;
 
 // Map Gen
