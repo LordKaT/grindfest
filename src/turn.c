@@ -97,3 +97,7 @@ bool turn_queue_is_empty(void) {
 long turn_get_current_time(void) {
     return global_time;
 }
+
+void turn_clear(void) {
+    heap_size = 0;
+}

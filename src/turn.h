@@ -23,5 +23,6 @@ void turn_add_event(long time, EntityID entity_id, EventType type);
 GameEvent turn_pop_event(void);
 bool turn_queue_is_empty(void);
 long turn_get_current_time(void);
+void turn_clear(void);
 
 #endif

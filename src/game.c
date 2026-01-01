@@ -310,6 +310,114 @@ static void update_char_creator(void) {
 }
 
 
+
+
+
+// ----------------------------------------------------------------------------
+// Zoning & Spawning
+// ----------------------------------------------------------------------------
+
+void game_spawn_mobs(void) {
+    // 10 Random mobs
+    for (int i=0; i<10; i++) {
+        if (g_game.entity_count >= MAX_ENTITIES) break;
+        
+        Entity* e = &g_game.entities[g_game.entity_count]; // 0 is player, but entity_count tracks array usage. 
+        // Wait, g_game.entities[MAX_ENTITIES]... usually player is separate so entities array is just mobs?
+        // Let's check struct.
+        // Game { Entity player; Entity entities[MAX_ENTITIES]; int entity_count; }
+        // So entity_count refers to how many are in the entities array.
+        
+        // Simple Rabbit Template
+        e->id = g_game.entity_count + 100; // Offset ID
+        e->type = ENTITY_ENEMY;
+        e->is_active = true;
+        e->symbol = 'r';
+        e->color_pair = 3; // Red
+        strcpy(e->name, "Rabbit");
+        
+        // Stats
+        e->base_stats.str = 5;
+        e->base_stats.vit = 4;
+        e->resources.max_hp = 30;
+        e->resources.hp = 30;
+        e->move_speed = 100;
+        e->is_aggressive = false;
+        
+        // Place
+        while(1) {
+            int x = rand() % MAP_WIDTH;
+            int y = rand() % MAP_HEIGHT;
+            if (map_is_walkable(&g_game.current_map, x, y) && !map_is_occupied(&g_game.current_map, x, y)) {
+                e->x = x;
+                e->y = y;
+                map_set_occupied(&g_game.current_map, x, y, true);
+                break;
+            }
+        }
+        
+        turn_add_event(turn_get_current_time() + 100, e->id, EVENT_MOVE);
+        g_game.entity_count++;
+    }
+}
+
+void game_transition_zone(const char* target_map, int tx, int ty) {
+    ui_log("Zoning...");
+    ui_render_log();
+    ui_refresh();
+    
+    // 1. Clear State
+    g_game.entity_count = 0; // Remove all mobs
+    turn_clear();
+    
+    // 2. Load Map
+    if (strcmp(target_map, "PROCEDURAL") == 0) {
+        map_generate_dungeon(&g_game.current_map);
+        g_game.current_map.zone_type = ZONE_FIELD;
+        
+        // Valid Spawn for player if tx=-1
+        if (tx == -1) {
+             while(1) {
+                int x = rand() % MAP_WIDTH;
+                int y = rand() % MAP_HEIGHT;
+                if (map_is_walkable(&g_game.current_map, x, y)) {
+                    g_game.player.x = x;
+                    g_game.player.y = y;
+                    break;
+                }
+            }
+        } else {
+            g_game.player.x = tx;
+            g_game.player.y = ty;
+        }
+        
+        // Spawn Mobs
+        game_spawn_mobs();
+        
+    } else {
+        // Static Map
+        char path[128];
+        snprintf(path, sizeof(path), "data/maps/%s", target_map);
+        map_load_static(&g_game.current_map, path);
+        g_game.current_map.zone_type = ZONE_CITY;
+        
+        g_game.player.x = tx;
+        g_game.player.y = ty;
+    }
+    
+    // 3. Re-occupy
+    map_set_occupied(&g_game.current_map, g_game.player.x, g_game.player.y, true);
+    
+    // 4. Initial FOV
+    map_compute_fov(&g_game.current_map, g_game.player.x, g_game.player.y, 8);
+    
+    // 5. Restart Loop
+    turn_add_event(turn_get_current_time(), g_game.player.id, EVENT_MOVE);
+    
+    // Force full refresh
+    ui_clear();
+}
+
 static void update_dungeon(void) {
     if (turn_queue_is_empty()) {
         // Should not happen if strictly circular, but safety
@@ -488,6 +596,15 @@ static void update_dungeon(void) {
                              // Movement cost
                              // Use Entity stats later
                              turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
+                             
+                             // Check Exits
+                             for (int i=0; i<g_game.current_map.exit_count; i++) {
+                                 MapExit* ex = &g_game.current_map.exits[i];
+                                 if (e->x == ex->x && e->y == ex->y) {
+                                     game_transition_zone(ex->target_map, ex->target_x, ex->target_y);
+                                     return; // Break frame
+                                 }
+                             }
                          } else {
                              // Blocked by entity?
                              // Maybe attack?

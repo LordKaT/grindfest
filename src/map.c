@@ -109,6 +109,10 @@ void map_load_static(Map* map, const char* filename) {
             map->sound[i][j] = SOUND_NONE;
         }
     }
+    
+    // Default to City for static maps
+    map->zone_type = ZONE_CITY;
+    map->exit_count = 0;
 
     while (fgets(line, sizeof(line), f)) {
         // Strip newline
@@ -130,6 +134,20 @@ void map_load_static(Map* map, const char* filename) {
                 fprintf(stderr, "FATAL: Map height mismatch. Expected %d, got %d in %s\n", MAP_HEIGHT, h, filename);
                 fclose(f);
                 exit(1);
+            }
+        } else if (strncmp(line, "exit:", 5) == 0) {
+            // Format: exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1
+            // Simple parsing assuming strict format or robust enough
+            if (map->exit_count < 16) {
+                MapExit* e = &map->exits[map->exit_count++];
+                // sscanf is risky with strings, but we control the format.
+                // Or parse manually.
+                
+                // Let's use sscanf for simplicity if format is rigid.
+                char file_buf[64] = {0};
+                sscanf(line, "exit:x=%d,y=%d,file=%63[^,],tx=%d,ty=%d", 
+                       &e->x, &e->y, file_buf, &e->target_x, &e->target_y);
+                strcpy(e->target_map, file_buf);
             }
         } else if (strcmp(line, "layer:terrain") == 0) {
             in_terrain = true;

@@ -28,7 +28,8 @@ typedef struct {
     
     // We typically might have an array of entities for the level
     // For this scaffold, a simple array suffices
-    Entity entities[100];
+    #define MAX_ENTITIES 100
+    Entity entities[MAX_ENTITIES];
     int entity_count;
     
     // UI Messages log

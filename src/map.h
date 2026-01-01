@@ -26,10 +26,25 @@ typedef enum {
     SOUND_MUFFLED
 } SoundState;
 
+typedef enum {
+    ZONE_CITY,
+    ZONE_FIELD
+} ZoneType;
+
+typedef struct {
+    int x, y;
+    char target_map[64];
+    int target_x, target_y;
+} MapExit;
+
 typedef struct {
     Tile tiles[MAP_WIDTH][MAP_HEIGHT];
     uint8_t smell[MAP_WIDTH][MAP_HEIGHT]; // 0-255 smell value
     SoundState sound[MAP_WIDTH][MAP_HEIGHT]; // Sound Propagation state
+    
+    ZoneType zone_type;
+    MapExit exits[16];
+    int exit_count;
 } Map;
 
 // Map Gen
