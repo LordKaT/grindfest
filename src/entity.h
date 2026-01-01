@@ -29,6 +29,8 @@ typedef enum {
     RACE_MAX
 } RaceType;
 
+#define IS_PLAYER_RACE(x) (x >= RACE_HUME && x <= RACE_GALKA)
+
 typedef enum {
     NATION_NONE,
     NATION_BASTOK,
@@ -38,7 +40,7 @@ typedef enum {
     NATION_MAX,
 } NationType;
 
-#define IS_PLAYER_RACE(x) (x >= RACE_HUME && x <= RACE_GALKA)
+#define IS_PLAYER_NATION(x) (x >= NATION_BASTOK && x <= NATION_WINDURST)
 
 typedef enum {
     ENTITY_PLAYER,
