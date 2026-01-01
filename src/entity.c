@@ -1,7 +1,30 @@
 #include <stdio.h>
 #include <string.h>
 #include "entity.h"
+#include <string.h>
+#include "entity.h"
 #include "ui.h" // For logging
+
+static const Attributes RACE_BASE[RACE_MAX] = {
+    //              STR, DEX, VIT, AGI, INT, MND, CHR
+    [RACE_HUME]     = {8,  8,  8,  8,  8,  8,  8},
+    [RACE_ELVAAN]   = {10, 8,  9,  7,  6,  9,  8},
+    [RACE_TARUTARU] = {6,  8,  6,  8,  12, 8,  8},
+    [RACE_MITHRA]   = {8,  10, 8,  10, 7,  7,  8},
+    [RACE_GALKA]    = {9,  8,  12, 7,  6,  8,  7},
+    [RACE_WORM]     = {8,  8,  8,  8,  8,  8,  8}
+};
+
+static const Attributes JOB_MODS[JOB_MAX] = {
+    //                STR, DEX, VIT, AGI, INT, MND, CHR
+    [JOB_WARRIOR]    = {3,  1,  3,  1,  0,  0,  0},
+    [JOB_MONK]       = {2,  1,  4,  0,  0,  1,  0},
+    [JOB_THIEF]      = {1,  4,  1,  4,  0,  0,  0},
+    [JOB_BLACK_MAGE] = {0,  0,  1,  1,  5,  2,  1},
+    [JOB_WHITE_MAGE] = {1,  0,  1,  1,  1,  5,  2},
+    [JOB_RED_MAGE]   = {2,  2,  2,  2,  2,  2,  2},
+    [JOB_WORM]       = {0,0,0,0,0,0,0}
+};
 
 void entity_add_exp(Entity* e, int amount) {
     if (e->type != ENTITY_PLAYER) return; // Simple for now
@@ -69,6 +92,43 @@ void entity_tick_status(Entity* e) {
 }
 
 // Helpers Stubs
+void entity_init_stats(Entity* e, RaceType r, JobType j) {
+    if (r < 0 || r >= RACE_MAX) r = RACE_HUME; // Safety
+    if (j < 0 || j >= JOB_MAX) j = JOB_WARRIOR;
+    
+    // 1. Calculate Base
+    e->base_stats.str = RACE_BASE[r].str + JOB_MODS[j].str;
+    e->base_stats.dex = RACE_BASE[r].dex + JOB_MODS[j].dex;
+    e->base_stats.vit = RACE_BASE[r].vit + JOB_MODS[j].vit;
+    e->base_stats.agi = RACE_BASE[r].agi + JOB_MODS[j].agi;
+    e->base_stats.intel = RACE_BASE[r].intel + JOB_MODS[j].intel;
+    e->base_stats.mnd = RACE_BASE[r].mnd + JOB_MODS[j].mnd;
+    e->base_stats.chr = RACE_BASE[r].chr + JOB_MODS[j].chr;
+    
+    // 2. Sync Current
+    e->current_stats = e->base_stats;
+    
+    // 3. Resources
+    e->resources.max_hp = (e->base_stats.vit * 5) + (e->base_stats.str * 2);
+    
+    if (j == JOB_WARRIOR || j == JOB_MONK || j == JOB_THIEF) {
+        e->resources.max_mp = 0;
+    } else {
+        e->resources.max_mp = (e->base_stats.intel * 3) + (e->base_stats.mnd * 2);
+    }
+    
+    // Fill
+    e->resources.hp = e->resources.max_hp;
+    e->resources.mp = e->resources.max_mp;
+    
+    // 4. Set Fields
+    e->race = r;
+    e->main_job = j;
+    e->current_level = 1; 
+    e->job_levels[j] = 1;
+    e->job_exp[j] = 0;
+}
+
 const char* entity_get_race_name(RaceType r) {
     switch (r) {
         case RACE_HUME: return "Hume";
@@ -81,7 +141,31 @@ const char* entity_get_race_name(RaceType r) {
     }
 }
 
+const char* entity_get_race_name_short(RaceType r) {
+    switch (r) {
+        case RACE_HUME: return "HUM";
+        case RACE_ELVAAN: return "ELV";
+        case RACE_TARUTARU: return "TAR";
+        case RACE_MITHRA: return "MIT";
+        case RACE_GALKA: return "WAL";
+        case RACE_WORM: return "WRM";
+        default: return "Unknown";
+    }
+}
+
 const char* entity_get_job_name(JobType j) {
+     switch (j) {
+        case JOB_WARRIOR: return "Warrior";
+        case JOB_MONK: return "Monk";
+        case JOB_THIEF: return "Thief";
+        case JOB_BLACK_MAGE: return "Black MAge";
+        case JOB_WHITE_MAGE: return "White Mage";
+        case JOB_RED_MAGE: return "Red Mage";
+        default: return "???";
+    }
+}
+
+const char* entity_get_job_name_short(JobType j) {
      switch (j) {
         case JOB_WARRIOR: return "WAR";
         case JOB_MONK: return "MNK";

@@ -5,6 +5,7 @@
 
 typedef enum {
     INPUT_ACTION_NONE,
+    INPUT_ACTION_CONFIRM, // Enter
     INPUT_ACTION_CANCEL, // ESC or Quit
     INPUT_ACTION_MENU,   // 'm'
     INPUT_ACTION_MOVE_UP,

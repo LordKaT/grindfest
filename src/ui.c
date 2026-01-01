@@ -10,12 +10,17 @@
 #include "turn.h"
 
 // Layout Definitions
-#define MAP_VIEW_WIDTH 54
+// Defaults for Game Loop
+// MAP 54, PANEL 26
+// Defaults for Creator
+// MAP 40, PANEL 40
+
+static int layout_map_width = 54;
+static int layout_panel_width = 26;
+// Heights are constant for now
 #define MAP_VIEW_HEIGHT 16
 #define LOG_HEIGHT 7
 #define INPUT_HEIGHT 1
-
-#define PANEL_WIDTH 26
 #define PANEL_HEIGHT 24
 
 static WINDOW *win_map;
@@ -55,11 +60,43 @@ void ui_init(void) {
     refresh(); // Refresh stdscr
 
     // Create Windows
-    win_map = newwin(MAP_VIEW_HEIGHT, MAP_VIEW_WIDTH, 0, 0);
-    win_panel = newwin(PANEL_HEIGHT, PANEL_WIDTH, 0, MAP_VIEW_WIDTH);
-    win_log = newwin(LOG_HEIGHT, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT, 0);
-    win_input = newwin(INPUT_HEIGHT, MAP_VIEW_WIDTH, MAP_VIEW_HEIGHT + LOG_HEIGHT, 0);
+
+    // Initial Layout is Game Default? Or Creator?
+    // We'll let game logic call ui_set_layout.
+    // For init, we don't create windows yet. ui_set_layout will do it.
+    // But we need to be safe if render called before layout.
+    
+    ui_set_layout(UI_LAYOUT_GAME); // Default
+}
+
+void ui_set_layout(UILayout layout) {
+    if (layout == UI_LAYOUT_GAME) {
+        layout_map_width = 54;
+        layout_panel_width = 26;
+    } else if (layout == UI_LAYOUT_CREATOR) {
+        layout_map_width = 40;
+        layout_panel_width = 40;
+    }
+
+    if (win_map) delwin(win_map);
+    if (win_panel) delwin(win_panel);
+    if (win_log) delwin(win_log);
+    if (win_input) delwin(win_input);
+    if (win_menu) { delwin(win_menu); win_menu = NULL; }
+
+    win_map = newwin(MAP_VIEW_HEIGHT, layout_map_width, 0, 0);
+    win_panel = newwin(PANEL_HEIGHT, layout_panel_width, 0, layout_map_width);
+    win_log = newwin(LOG_HEIGHT, layout_map_width, MAP_VIEW_HEIGHT, 0);
+    win_input = newwin(INPUT_HEIGHT, layout_map_width, MAP_VIEW_HEIGHT + LOG_HEIGHT, 0);
+    
     keypad(win_input, TRUE);
+
+    wbkgd(win_map, COLOR_PAIR(2));
+    wbkgd(win_panel, COLOR_PAIR(2));
+    wbkgd(win_log, COLOR_PAIR(2));
+    wbkgd(win_input, COLOR_PAIR(2));
+    
+    refresh();
 
     // Force background to black for all windows
     wbkgd(win_map, COLOR_PAIR(2));
@@ -121,7 +158,7 @@ static cchar_t* get_wall_glyph(int mask) {
 }
 
 static bool tile_is_known_wall(const Map* map, int x, int y) {
-    if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) return false;
+    if (x < 0 || y < 0 || x >= layout_map_width || y >= MAP_HEIGHT) return false;
     const Tile* t = &map->tiles[x][y];
     if (!(t->visible || t->explored)) return false;
     return t->type == TILE_WALL;
@@ -142,7 +179,7 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
 
     // Draw Map
     for (int y = 0; y < MAP_HEIGHT; y++) {
-        for (int x = 0; x < MAP_WIDTH; x++) {
+        for (int x = 0; x < layout_map_width && x < MAP_WIDTH; x++) {
             
             // Render Mode Logic
             if (mode == RENDER_MODE_SMELL) {
@@ -261,6 +298,78 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
         mvwaddch(win_map, player->y, player->x, player->symbol);
         wattroff(win_map, COLOR_PAIR(player->color_pair));
     }
+}
+
+// ----------------------------------------------------------------------------
+// Creator Wizard System
+// ----------------------------------------------------------------------------
+
+void ui_render_creator_menu(const char* title, const char** items, int count, int selection, const char* description) {
+    // 1. Render List in Map Window (Left)
+    werase(win_map);
+    box(win_map, 0, 0);
+    mvwprintw(win_map, 0, 2, "[ %s ]", title);
+    
+    int y = 2;
+    for (int i = 0; i < count; i++) {
+        if (i == selection) {
+            wattron(win_map, A_REVERSE | A_BOLD);
+        }
+        mvwprintw(win_map, y++, 2, " %s ", items[i]);
+        if (i == selection) {
+            wattroff(win_map, A_REVERSE | A_BOLD);
+        }
+    }
+    wrefresh(win_map);
+
+    // 2. Render Description in Panel Window (Right)
+    werase(win_panel);
+    box(win_panel, 0, 0);
+    mvwprintw(win_panel, 1, 2, "Details:");
+    
+    // Word wrap description manually
+    int desc_y = 3;
+    int desc_x = 2;
+    int max_width = layout_panel_width - 4;
+    
+    // Simple word wrap
+    int len = strlen(description);
+    int cursor = 0;
+    while (cursor < len) {
+        int space_left = max_width; 
+        int chunk_len = 0;
+        
+        // Find how many words fit in space_left
+        while (cursor + chunk_len < len) {
+            // Check next word length
+            int next_space = chunk_len;
+            while (cursor + next_space < len && description[cursor + next_space] != ' ') {
+                next_space++;
+            }
+            // Include reference to space
+            if (cursor + next_space < len) next_space++; 
+            
+            if (next_space > space_left) break; // Word doesn't fit
+            chunk_len = next_space;
+        }
+        
+        // If single word is longer than line (unlikely with this width), just print it?
+        if (chunk_len == 0 && space_left > 0) {
+             // Force break word
+             chunk_len = space_left;
+        }
+
+        mvwprintw(win_panel, desc_y++, desc_x, "%.*s", chunk_len, description + cursor);
+        cursor += chunk_len;
+    }
+    
+    wrefresh(win_panel);
+    
+    // 3. Clear others
+    werase(win_log);
+    werase(win_input);
+    wrefresh(win_log);
+    wrefresh(win_input);
 }
 
 // ----------------------------------------------------------------------------
@@ -404,12 +513,21 @@ int ui_get_input(char* input_buffer, int max_len) {
     return ch;
 }
 
-void ui_get_string(char* buffer, int max_len) {
+void ui_get_string(const char* prompt, char* buffer, int max_len) {
     echo();
     curs_set(1);
     
-    // Move to input window
-    wmove(win_input, 0, 2); // after "> "
+    // Clear input line first
+    werase(win_input);
+    
+    // Print prompt if provided
+    if (prompt) {
+        mvwprintw(win_input, 0, 0, "%s ", prompt);
+        // The cursor stays at end of print
+    } else {
+        wmove(win_input, 0, 0); 
+    }
+    
     wgetnstr(win_input, buffer, max_len);
     
     noecho();

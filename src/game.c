@@ -131,22 +131,123 @@ static void update_start_menu(void) {
     char dummy[10];
     ui_get_input(dummy, 10); // blocking wait
     
+    ui_set_layout(UI_LAYOUT_CREATOR);
     g_game.current_state = STATE_CHAR_CREATOR;
 }
 
-static void update_char_creator(void) {
-    ui_clear();
-    ui_log("Character Creation (Stub). Press Any Key.");
-    ui_render_log();
-    ui_refresh();
+// ----------------------------------------------------------------------------
+// Character Creator Wizard
+// ----------------------------------------------------------------------------
 
-    char dummy[10];
-    ui_get_input(dummy, 10);
-    
-    // Setup initial turn
-    turn_add_event(0, g_game.player.id, EVENT_MOVE);
-    
-    g_game.current_state = STATE_DUNGEON_LOOP;
+typedef enum {
+    CREATOR_STEP_NAME,
+    CREATOR_STEP_RACE,
+    CREATOR_STEP_JOB
+} CreatorStep;
+
+static CreatorStep creator_step = CREATOR_STEP_NAME;
+static int creator_selection = 0;
+
+static const char* RACE_NAMES[] = {
+    "Hume", "Elvaan", "Tarutaru", "Mithra", "Galka"
+};
+static const char* JOB_NAMES[] = {
+    "Warrior", "Monk", "Thief", "Black Mage", "White Mage", "Red Mage"
+};
+
+// Descriptions
+static const char* RACE_DESC[] = {
+    "Balanced stats. Good at everything, master of nothing.",
+    "High STR and MND. Classic Knights and Paladins.",
+    "Maximum INT and MP. The ultimate magic users.",
+    "High DEX and AGI. Critical hits and evasion.",
+    "Massive VIT and HP. The toughest tanks."
+};
+
+static const char* JOB_DESC[] = {
+    "Melee damage dealer. High HP and Defense.",
+    "Hand-to-hand fighter. High HP and Vitality.",
+    "Agile fighter. High Evasion and Dex.",
+    "Offensive magic. Bursts of high damage.",
+    "Healer. Keeps the party alive.",
+    "Jack of all trades. Sword and Sorcery."
+};
+
+
+static void update_char_creator(void) {
+    if (creator_step == CREATOR_STEP_NAME) {
+        ui_clear();
+        ui_log("Creating Character...");
+        ui_render_log();
+        ui_refresh();
+        
+        char name_buf[32];
+        ui_get_string("Enter your name:", name_buf, 32);
+        
+        if (strlen(name_buf) > 0) {
+            strncpy(g_game.player.name, name_buf, 31);
+        } // else keep default "Adventurer"
+        
+        creator_step = CREATOR_STEP_RACE;
+        creator_selection = 0;
+        
+    } else if (creator_step == CREATOR_STEP_RACE) {
+        ui_render_creator_menu(
+            "Select Race", 
+            RACE_NAMES, 
+            5, 
+            creator_selection, 
+            RACE_DESC[creator_selection]
+        );
+        
+        char buf[10];
+        int key = ui_get_input(buf, 10);
+        InputResult res = input_handle_key(key);
+        
+        if (res.type == INPUT_ACTION_MOVE_UP) {
+            creator_selection--;
+            if (creator_selection < 0) creator_selection = 4;
+        } else if (res.type == INPUT_ACTION_MOVE_DOWN) {
+            creator_selection++;
+            if (creator_selection > 4) creator_selection = 0;
+        } else if (res.type == INPUT_ACTION_CONFIRM) {
+            g_game.player.race = (RaceType)creator_selection;
+            creator_step = CREATOR_STEP_JOB;
+            creator_selection = 0;
+        }
+        
+    } else if (creator_step == CREATOR_STEP_JOB) {
+        ui_render_creator_menu(
+            "Select Job", 
+            JOB_NAMES, 
+            6, 
+            creator_selection, 
+            JOB_DESC[creator_selection]
+        );
+        
+        char buf[10];
+        int key = ui_get_input(buf, 10);
+        InputResult res = input_handle_key(key);
+        
+        if (res.type == INPUT_ACTION_MOVE_UP) {
+            creator_selection--;
+            if (creator_selection < 0) creator_selection = 5;
+        } else if (res.type == INPUT_ACTION_MOVE_DOWN) {
+            creator_selection++;
+            if (creator_selection > 5) creator_selection = 0;
+        } else if (res.type == INPUT_ACTION_CONFIRM) {
+            g_game.player.main_job = (JobType)creator_selection;
+            
+            entity_init_stats(&g_game.player, g_game.player.race, g_game.player.main_job);
+            
+            // Transition
+            ui_set_layout(UI_LAYOUT_GAME);
+            g_game.current_state = STATE_DUNGEON_LOOP;
+            
+            // Setup initial turn
+            turn_add_event(0, g_game.player.id, EVENT_MOVE);
+        }
+    }
 }
 
 
@@ -278,7 +379,7 @@ static void update_dungeon(void) {
                     ui_refresh();
                     
                     char cmd_buf[128];
-                    ui_get_string(cmd_buf, 128);
+                    ui_get_string(NULL, cmd_buf, 128);
                     
                     // Prepend / to match expected format if user typed "attack" vs "/attack"?
                     // ui_get_string captures what they typed.

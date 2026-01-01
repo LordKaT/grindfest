@@ -11,15 +11,19 @@ InputResult input_handle_key(int key) {
 
     switch(key) {
         case '8':
+        case KEY_UP:
             res.type = INPUT_ACTION_MOVE_UP;
             break;
         case '2':
+        case KEY_DOWN:
             res.type = INPUT_ACTION_MOVE_DOWN;
             break;
         case '4':
+        case KEY_LEFT:
             res.type = INPUT_ACTION_MOVE_LEFT;
             break;
         case '6':
+        case KEY_RIGHT:
             res.type = INPUT_ACTION_MOVE_RIGHT;
             break;
         case '7':
@@ -28,9 +32,17 @@ InputResult input_handle_key(int key) {
         case '9':
             res.type = INPUT_ACTION_MOVE_UP_RIGHT;
             break;
+        case '3':
+            res.type = INPUT_ACTION_MOVE_DOWN_RIGHT;
+            break;
         case '1':
             res.type = INPUT_ACTION_MOVE_DOWN_LEFT;
             break;
+        case 10: // \n
+        case 13: // \r
+        case KEY_ENTER:
+            return (InputResult){INPUT_ACTION_CONFIRM, ""};
+            
         case 27: // ESC
         case 'q': return (InputResult){INPUT_ACTION_CANCEL, ""};
         case 'm': return (InputResult){INPUT_ACTION_MENU, ""};

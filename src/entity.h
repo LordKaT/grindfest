@@ -17,6 +17,8 @@ typedef enum {
     JOB_MAX
 } JobType;
 
+#define IS_PLAYER_JOB(x) (x >= JOB_WARRIOR && x <= JOB_RED_MAGE)
+
 typedef enum {
     RACE_HUME,
     RACE_ELVAAN,
@@ -26,6 +28,8 @@ typedef enum {
     RACE_WORM,
     RACE_MAX
 } RaceType;
+
+#define IS_PLAYER_RACE(x) (x >= RACE_HUME && x <= RACE_GALKA)
 
 typedef enum {
     ENTITY_PLAYER,
@@ -44,6 +48,7 @@ typedef enum {
 #define DETECT_SIGHT (1 << 0)
 #define DETECT_SOUND (1 << 1)
 #define DETECT_SMELL (1 << 2)
+#define DETECT_MAGIC (1 << 3)
 
 typedef enum {
     KI_ADVENTURER_CERTIFICATE,
@@ -147,6 +152,7 @@ void entity_add_exp(Entity* e, int amount);
 bool entity_has_key_item(const Entity* e, KeyItemType ki);
 void entity_add_status(Entity* e, StatusEffectType type, int duration, int power);
 void entity_tick_status(Entity* e);
+void entity_init_stats(Entity* e, RaceType r, JobType j);
 
 // Stubs
 const char* entity_get_race_name(RaceType r);

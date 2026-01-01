@@ -4,8 +4,16 @@
 #include "game.h"
 
 // Init/Cleanup ncurses
+// Init/Cleanup ncurses
 void ui_init(void);
 void ui_cleanup(void);
+
+typedef enum {
+    UI_LAYOUT_GAME,    // 54x16 Map, 26x24 Panel
+    UI_LAYOUT_CREATOR  // 40x16 Map, 40x24 Panel
+} UILayout;
+
+void ui_set_layout(UILayout layout);
 
 // Rendering
 void ui_clear(void);
@@ -19,6 +27,7 @@ void ui_refresh(void);
 void ui_open_menu(void);
 void ui_close_menu(void);
 void ui_render_menu(const Entity* player);
+void ui_render_creator_menu(const char* title, const char** items, int count, int selection, const char* description);
 
 // Input
 // Non-blocking check for key? Or blocking 'getch'? 
@@ -28,7 +37,7 @@ void ui_render_menu(const Entity* player);
 int ui_get_input(char* input_buffer, int max_len);
 
 // Blocking string input at bottom line
-void ui_get_string(char* buffer, int max_len);
+void ui_get_string(const char* prompt, char* buffer, int max_len);
 
 // Logging
 void ui_log(const char* fmt, ...);
