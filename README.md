@@ -2,6 +2,8 @@
 
 A minimal roguelike scaffold in pure C (ncurses), featuring an FFXI-style "Engagement" combat system.
 
+Yes, this project is mostly vibe coded. No, I don't care. If you don't like it, go somewhere else. It's my project not yours.
+
 ## Build Instructions
 
 ```bash
