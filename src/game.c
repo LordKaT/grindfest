@@ -88,7 +88,7 @@ static void update_start_menu(void) {
     ui_refresh();
     
     char dummy[10];
-    ui_get_input(dummy, 10); // blocking wait
+    ui_get_input(dummy, 10, -1); // blocking wait
     
     ui_set_layout(UI_LAYOUT_CREATOR);
     g_game.current_state = STATE_CHAR_CREATOR;
@@ -171,7 +171,7 @@ static void update_char_creator(void) {
         );
         
         char buf[10];
-        int key = ui_get_input(buf, 10);
+        int key = ui_get_input(buf, 10, -1);
         InputResult res = input_handle_key(key);
         
         if (res.type == INPUT_ACTION_MOVE_UP) {
@@ -196,7 +196,7 @@ static void update_char_creator(void) {
         );
         
         char buf[10];
-        int key = ui_get_input(buf, 10);
+        int key = ui_get_input(buf, 10, -1);
         InputResult res = input_handle_key(key);
         
         if (res.type == INPUT_ACTION_MOVE_UP) {
@@ -223,7 +223,7 @@ static void update_char_creator(void) {
 
         char dummy[10];
         InputResult res; 
-        int key = ui_get_input(dummy, 10);
+        int key = ui_get_input(dummy, 10, -1);
         res = input_handle_key(key);
         
         if (res.type == INPUT_ACTION_MOVE_UP) {
@@ -441,9 +441,15 @@ static void update_dungeon(void) {
                 ui_refresh();
                 
                 char buf[256] = {0};
-                int key = ui_get_input(buf, 256);
+                int key = ui_get_input(buf, 256, 150); // 150ms timeout
                 
                 InputResult res = input_handle_key(key);
+                
+                if (res.type == INPUT_ACTION_TIMEOUT) {
+                    ui_tick_animation();
+                    // Just continue, the loop will re-render
+                    continue;
+                }
                 
                 int dx = 0, dy = 0;
                 if (res.type == INPUT_ACTION_CANCEL) {
@@ -601,7 +607,7 @@ static void update_menu_loop(void) {
     
     // 2. Input
     char buf[10];
-    int key = ui_get_input(buf, 10);
+    int key = ui_get_input(buf, 10, -1);
     
     InputResult res = input_handle_key(key);
     

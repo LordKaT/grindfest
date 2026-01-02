@@ -34,6 +34,7 @@ static WINDOW *win_menu; // Menu Window
 static char log_history[MAX_LOG_LINES][64];
 //static int log_head = 0;
 static int log_count = 0;
+static int animation_frame = 0;
 
 void ui_init(void) {
     // Reduce ESC delay to 25ms to prevent menu exit lag
@@ -54,6 +55,19 @@ void ui_init(void) {
         init_pair(4, COLOR_CYAN, COLOR_BLACK);   // UI borders
         init_pair(5, COLOR_BLUE, COLOR_BLACK);   // Sound Clear
         init_pair(6, COLOR_CYAN, COLOR_BLACK);   // Sound Muffled (reuse cyan but specific semantic)
+        // Water Animation Colors
+        init_pair(10, COLOR_BLUE, COLOR_BLACK);
+        init_pair(11, COLOR_CYAN, COLOR_BLACK);
+        init_pair(12, COLOR_WHITE, COLOR_BLACK);
+
+        // Bridge/Wood
+        //init_pair(13, COLOR_YELLOW, COLOR_BLACK);
+        if (can_change_color() && COLORS >= 16) {
+            init_color(8, 600, 300, 0);   // R, G, B
+            init_pair(13, 8, COLOR_BLACK);
+        } else {
+            init_pair(1, COLOR_YELLOW, COLOR_BLACK);
+        }
     }
 
     bkgd(COLOR_PAIR(2)); // Force stdscr to black
@@ -175,7 +189,7 @@ static int wall_mask_at(const Map* map, int x, int y) {
 
 void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count, RenderMode mode) {
     // Basic rendering 
-    wclear(win_map);
+    werase(win_map);
 
     // Draw Title Bar
     wattron(win_map, A_BOLD);
@@ -297,6 +311,17 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
             if (map->tiles[x][y].type == TILE_FLOOR) {
                 mvwaddch(win_map, win_y, vx, '.');
             } 
+            else if (map->tiles[x][y].type == TILE_WATER) {
+                // Animation: Cycle colors 10, 11, 12 based on frame + position
+                // Phase 0..3
+                int phase = (x + y + (animation_frame / 2)) % 4;
+                int color_idx = 10; // Blue
+                if (phase == 1 || phase == 3) color_idx = 11; // Cyan
+                if (phase == 2) color_idx = 12; // White (Sparkle)
+                
+                wattr_set(win_map, A_NORMAL, color_idx, NULL);
+                mvwaddch(win_map, win_y, vx, '~');
+            }
             else if (map->tiles[x][y].type == TILE_WALL) {
                 int mask = wall_mask_at(map, x, y);
                 cchar_t* wglyph = get_wall_glyph(mask);
@@ -306,6 +331,9 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                 } else {
                      mvwaddch(win_map, win_y, vx, '#'); 
                 }
+            } else if (map->tiles[x][y].type == TILE_BRIDGE) {
+                wattr_set(win_map, A_NORMAL, 13, NULL);
+                mvwaddch(win_map, win_y, vx, '=');
             } else {
                  mvwaddch(win_map, win_y, vx, ' '); 
             }
@@ -545,27 +573,8 @@ void ui_log(const char* fmt, ...) {
     }
 }
 
-int ui_get_input(char* input_buffer, int max_len) {
-    (void) input_buffer;
-    (void) max_len;
-    // For ncurses, we can use wgetch(win_input)
-    // But we want to support typing a command.
-    
-    // Simple mode: Single key
-    // If user presses '/', we might enter "String Mode"
-    // For now, let's just return the keycode
-    
-    // We need to set echo if we want to show typing?
-    // Or we handle it manually.
-    
-    curs_set(1); // Show cursor for input
-    int ch = wgetch(win_input); // Blocking
-    curs_set(0);
-    
-    return ch;
-}
-
 void ui_get_string(const char* prompt, char* buffer, int max_len) {
+    wtimeout(win_input, -1); // Force blocking for string input
     echo();
     curs_set(1);
     
@@ -579,9 +588,29 @@ void ui_get_string(const char* prompt, char* buffer, int max_len) {
     } else {
         wmove(win_input, 0, 0); 
     }
+    wrefresh(win_input); // Ensure prompt is visible
     
     wgetnstr(win_input, buffer, max_len);
-    
     noecho();
     curs_set(0);
+}
+
+int ui_get_input(char* input_buffer, int max_len, int timeout_ms) {
+    (void) input_buffer;
+    (void) max_len;
+    
+    wtimeout(win_input, timeout_ms); // Set timeout
+    curs_set(1); 
+    int ch = wgetch(win_input);
+    curs_set(0);
+    
+    if (ch == ERR) {
+        return ERR;
+    }
+    
+    return ch;
+}
+
+void ui_tick_animation(void) {
+    animation_frame++;
 }

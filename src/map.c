@@ -172,6 +172,10 @@ void map_load_static(Map* map, const char* filename) {
                     map->tiles[x][y].type = TILE_WALL;
                 } else if (line[x] == '.') {
                     map->tiles[x][y].type = TILE_FLOOR;
+                } else if (line[x] == 'W') {
+                    map->tiles[x][y].type = TILE_WATER;
+                } else if (line[x] == '=') {
+                    map->tiles[x][y].type = TILE_BRIDGE;
                 } else {
                     map->tiles[x][y].type = TILE_FLOOR; // Fallback
                 }
@@ -410,7 +414,7 @@ SoundState map_sound_at(const Map* map, int x, int y) {
 
 bool map_is_walkable(Map* map, int x, int y) {
     if (x < 0 || x >= map->width || y < 0 || y >= map->height) return false;
-    return map->tiles[x][y].type == TILE_FLOOR;
+    return map->tiles[x][y].type == TILE_FLOOR || map->tiles[x][y].type == TILE_BRIDGE;
 }
 
 // ----------------------------------------------------------------------------

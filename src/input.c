@@ -62,6 +62,9 @@ InputResult input_handle_key(int key) {
         case KEY_F(3):
             res.type = INPUT_ACTION_VIEW_SOUND;
             break;
+        case ERR:
+            res.type = INPUT_ACTION_TIMEOUT;
+            break;
         default:
             break;
     }

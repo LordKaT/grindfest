@@ -11,7 +11,9 @@ typedef enum {
     TILE_EMPTY = 0,
     TILE_FLOOR,
     TILE_WALL,
-    TILE_DOOR
+    TILE_DOOR,
+    TILE_WATER,
+    TILE_BRIDGE
 } TileType;
 
 typedef struct {

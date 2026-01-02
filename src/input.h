@@ -21,7 +21,8 @@ typedef enum {
     INPUT_ACTION_VIEW_SMELL,
     INPUT_ACTION_VIEW_SOUND,
     INPUT_ACTION_WAIT,
-    INPUT_ACTION_QUIT
+    INPUT_ACTION_QUIT,
+    INPUT_ACTION_TIMEOUT
 } InputAction;
 
 typedef struct {

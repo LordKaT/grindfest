@@ -34,7 +34,8 @@ void ui_render_creator_menu(const char* title, const char** items, int count, in
 // We likely need a blocking call that returns a Key or String.
 // However, since we have a command line, we need to handle character appending.
 // For the scaffold, we might return a simpler key code or update a buffer.
-int ui_get_input(char* input_buffer, int max_len);
+int ui_get_input(char* input_buffer, int max_len, int timeout_ms);
+void ui_tick_animation(void);
 
 // Blocking string input at bottom line
 void ui_get_string(const char* prompt, char* buffer, int max_len);
