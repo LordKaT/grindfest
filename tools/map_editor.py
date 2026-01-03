@@ -176,6 +176,7 @@ class MapView:
         
         self.create_menu()
         self.create_toolbar()
+        self.create_statusbar()
         self.create_layout()
 
     def create_menu(self):
@@ -208,6 +209,10 @@ class MapView:
         
         self.status_var = tk.StringVar()
         tk.Label(toolbar, textvariable=self.status_var).pack(side=tk.RIGHT, padx=5)
+
+    def create_statusbar(self):
+        self.pos_label = tk.Label(self.master, text="Pos: (-, -)", bd=1, relief=tk.SUNKEN, anchor=tk.E)
+        self.pos_label.pack(side=tk.BOTTOM, fill=tk.X)
 
     def validate_glyph(self):
         val = self.glyph_var.get()
@@ -267,6 +272,8 @@ class MapView:
         self.canvas.bind("<B1-Motion>", self.controller.on_canvas_drag)
         self.canvas.bind("<Button-3>", self.controller.on_canvas_rclick)
         self.canvas.bind("<B3-Motion>", self.controller.on_canvas_rdrag)
+        self.canvas.bind("<Motion>", self.controller.on_mouse_move)
+        self.canvas.bind("<Leave>", self.controller.on_mouse_leave)
         
         # Hotkeys
         self.master.bind("<p>", lambda e: self.controller.set_tool("pencil"))
@@ -318,6 +325,16 @@ class MapView:
                  )
                  self.canvas_ids[(x, y)] = item_id
 
+        # Ghost Cursor
+        self.cursor_preview_id = self.canvas.create_text(
+            -100, -100, # Off-screen initially
+            text=' ',
+            font=self.font,
+            fill="gold",
+            anchor="center",
+            tag="cursor_preview"
+        )
+
     def update_cell(self, x, y, char):
         if (x, y) in self.canvas_ids:
             color = "white"
@@ -343,6 +360,18 @@ class MapView:
     def refresh_font(self):
         self.font = ("Courier New", self.font_size, "bold")
         self.controller.refresh_view_full()
+
+    def update_cursor_preview(self, grid_x, grid_y, char):
+        if not (0 <= grid_x < self.controller.model.width and 0 <= grid_y < self.controller.model.height):
+             self.canvas.coords(self.cursor_preview_id, -100, -100) # Hide
+             return
+             
+        cx = grid_x * self.cell_width + self.cell_width // 2
+        cy = grid_y * self.cell_height + self.cell_height // 2
+        
+        self.canvas.coords(self.cursor_preview_id, cx, cy)
+        self.canvas.itemconfigure(self.cursor_preview_id, text=char, font=self.font)
+        self.canvas.tag_raise(self.cursor_preview_id)
 
     def screen_to_grid(self, sx, sy):
         x = int(self.canvas.canvasx(sx) // self.cell_width)
@@ -443,6 +472,27 @@ class EditorController:
         
     def on_canvas_rdrag(self, event):
         self.erase(event.x, event.y)
+
+    def on_mouse_move(self, event):
+        gx, gy = self.view.screen_to_grid(event.x, event.y)
+        
+        # 1. Update Status Bar
+        self.view.pos_label.config(text=f"Pos: ({gx}, {gy})")
+        
+        # 2. Update Ghost Cursor
+        preview_char = ' '
+        if self.active_tool == "pencil":
+            preview_char = self.get_active_glyph()
+        elif self.active_tool == "bucket":
+            # For bucket, maybe show the fill glyph?
+            preview_char = self.get_active_glyph()
+            
+        self.view.update_cursor_preview(gx, gy, preview_char)
+
+    def on_mouse_leave(self, event):
+        self.view.pos_label.config(text="Pos: (-, -)")
+        # Hide cursor preview
+        self.view.update_cursor_preview(-1, -1, ' ')
 
     def paint(self, screen_x, screen_y):
         x, y = self.view.screen_to_grid(screen_x, screen_y)

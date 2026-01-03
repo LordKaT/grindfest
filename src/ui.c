@@ -58,7 +58,10 @@ void ui_init(void) {
         // Water Animation Colors
         init_pair(10, COLOR_BLUE, COLOR_BLACK);
         init_pair(11, COLOR_CYAN, COLOR_BLACK);
+        init_pair(10, COLOR_BLUE, COLOR_BLACK);
+        init_pair(11, COLOR_CYAN, COLOR_BLACK);
         init_pair(12, COLOR_WHITE, COLOR_BLACK);
+        init_pair(14, COLOR_MAGENTA, COLOR_BLACK); // Teleport
 
         // Bridge/Wood
         //init_pair(13, COLOR_YELLOW, COLOR_BLACK);
@@ -343,6 +346,9 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                 mvwaddch(win_map, win_y, vx, '=');
             } else if (map->tiles[x][y].type == TILE_ZONE) {
                 wattr_set(win_map, A_NORMAL, 2, NULL);
+                mvwadd_wchar(win_map, win_y, vx, 0x2591);
+            } else if (map->tiles[x][y].type == TILE_TELEPORT) {
+                wattr_set(win_map, A_NORMAL, 14, NULL);
                 mvwadd_wchar(win_map, win_y, vx, 0x2591);
             } else {
                 mvwaddch(win_map, win_y, vx, ' '); 

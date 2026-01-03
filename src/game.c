@@ -569,12 +569,42 @@ static void update_dungeon(void) {
                              // Use Entity stats later
                              turn_add_event(evt.time + 100, e->id, EVENT_MOVE);
                              
-                             // Check Exits
-                             for (int i=0; i<g_game.current_map.exit_count; i++) {
-                                 MapExit* ex = &g_game.current_map.exits[i];
-                                 if (e->x == ex->x && e->y == ex->y) {
-                                     game_transition_zone(ex->target_file, ex->target_x, ex->target_y);
-                                     return; // Break frame
+                             // Check Teleports
+                             bool teleported = false;
+                             for (int i=0; i<g_game.current_map.teleport_count; i++) {
+                                 MapTeleport* tp = &g_game.current_map.teleports[i];
+                                 if (e->x == tp->x && e->y == tp->y) {
+                                     // Check destination validity
+                                     if (map_is_walkable(&g_game.current_map, tp->target_x, tp->target_y) && 
+                                         !map_is_occupied(&g_game.current_map, tp->target_x, tp->target_y)) {
+                                         
+                                         ui_log("Teleporting...");
+                                         
+                                         // Move
+                                         map_set_occupied(&g_game.current_map, e->x, e->y, false);
+                                         e->x = tp->target_x;
+                                         e->y = tp->target_y;
+                                         map_set_occupied(&g_game.current_map, e->x, e->y, true);
+                                         
+                                         // Re-FOV
+                                         map_compute_fov(&g_game.current_map, e->x, e->y, FOV_RADIUS);
+                                         
+                                         teleported = true;
+                                         break; // Skip Exits
+                                     } else {
+                                         ui_log("The teleport seems blocked.");
+                                     }
+                                 }
+                             }
+                             
+                             if (!teleported) {
+                                 // Check Exits
+                                 for (int i=0; i<g_game.current_map.exit_count; i++) {
+                                     MapExit* ex = &g_game.current_map.exits[i];
+                                     if (e->x == ex->x && e->y == ex->y) {
+                                         game_transition_zone(ex->target_file, ex->target_x, ex->target_y);
+                                         return; // Break frame
+                                     }
                                  }
                              }
                          } else {

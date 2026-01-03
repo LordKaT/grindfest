@@ -11,6 +11,7 @@ void map_generate_dungeon(Map* map) {
     // Legacy / Default Size
     map->width = 54;
     map->height = 16;
+    map->teleport_count = 0;
     
     // 1. Initialize all to WALL
     for(int x=0; x<map->width; x++) {
@@ -123,6 +124,7 @@ void map_load_static(Map* map, const char* filename) {
     // Default to City for static maps
     // map->zone_type = ZONE_CITY;
     map->exit_count = 0;
+    map->teleport_count = 0;
     strcpy(map->name, "Unknown Area");
 
     while (fgets(line, sizeof(line), f)) {
@@ -146,18 +148,28 @@ void map_load_static(Map* map, const char* filename) {
             strncpy(map->name, line + 10, 63);
             map->name[63] = '\0';
         } else if (strncmp(line, "exit:", 5) == 0) {
-            // Format: exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1
-            // Simple parsing assuming strict format or robust enough
+            // Format: exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1 OR map=...
             if (map->exit_count < 256) {
                 MapExit* e = &map->exits[map->exit_count++];
-                // sscanf is risky with strings, but we control the format.
-                // Or parse manually.
-                
-                // Let's use sscanf for simplicity if format is rigid.
                 char file_buf[64] = {0};
-                sscanf(line, "exit:x=%d,y=%d,file=%63[^,],tx=%d,ty=%d", 
+                
+                // Try format with 'file='
+                int parsed = sscanf(line, "exit:x=%d,y=%d,file=%63[^,],tx=%d,ty=%d", 
                        &e->x, &e->y, file_buf, &e->target_x, &e->target_y);
+                
+                if (parsed < 3) { // Try 'map=' if 'file=' failed
+                    parsed = sscanf(line, "exit:x=%d,y=%d,map=%63[^,],tx=%d,ty=%d", 
+                       &e->x, &e->y, file_buf, &e->target_x, &e->target_y);
+                }
+                
                 strcpy(e->target_file, file_buf);
+            }
+        } else if (strncmp(line, "teleport:", 9) == 0) {
+            // Format: teleport:x=%d,y=%d,tx=%d,ty=%d
+            if (map->teleport_count < MAX_TELEPORTS) {
+                MapTeleport* t = &map->teleports[map->teleport_count++];
+                sscanf(line, "teleport:x=%d,y=%d,tx=%d,ty=%d",
+                    &t->x, &t->y, &t->target_x, &t->target_y);
             }
         } else if (strcmp(line, "layer:terrain") == 0) {
             in_terrain = true;
@@ -429,7 +441,8 @@ bool map_is_walkable(Map* map, int x, int y) {
             map->tiles[x][y].type == TILE_FLOOR ||
             map->tiles[x][y].type == TILE_BRIDGE ||
             map->tiles[x][y].type == TILE_ZONE ||
-            map->tiles[x][y].type == TILE_VOID
+            map->tiles[x][y].type == TILE_VOID ||
+            map->tiles[x][y].type == TILE_TELEPORT
         );
 }
 

@@ -36,6 +36,12 @@ typedef struct {
     int target_x, target_y;
 } MapExit;
 
+typedef struct {
+    int x, y;
+    int target_x, target_y;
+} MapTeleport;
+
+
 typedef enum {
     SOUND_NONE = 0,
     SOUND_CLEAR = 1,
@@ -53,6 +59,9 @@ typedef struct {
     
     MapExit exits[256];
     int exit_count;
+    #define MAX_TELEPORTS 16
+    MapTeleport teleports[MAX_TELEPORTS];
+    int teleport_count;
 } Map;
 
 // Map Gen
