@@ -148,7 +148,7 @@ void map_load_static(Map* map, const char* filename) {
         } else if (strncmp(line, "exit:", 5) == 0) {
             // Format: exit:x=53,y=8,file=PROCEDURAL,tx=-1,ty=-1
             // Simple parsing assuming strict format or robust enough
-            if (map->exit_count < 16) {
+            if (map->exit_count < 256) {
                 MapExit* e = &map->exits[map->exit_count++];
                 // sscanf is risky with strings, but we control the format.
                 // Or parse manually.
@@ -176,6 +176,16 @@ void map_load_static(Map* map, const char* filename) {
                     map->tiles[x][y].type = TILE_WATER;
                 } else if (line[x] == '=') {
                     map->tiles[x][y].type = TILE_BRIDGE;
+                } else if (line[x] == 'Z') {
+                    map->tiles[x][y].type = TILE_ZONE;
+                } else if (line[x] == ' ') {
+                    map->tiles[x][y].type = TILE_VOID;
+                } else if (line[x] == '<') {
+                    map->tiles[x][y].type = TILE_STAIRS_UP;
+                } else if (line[x] == '>') {
+                    map->tiles[x][y].type = TILE_STAIRS_DOWN;
+                } else if (line[x] == 'T') {
+                    map->tiles[x][y].type = TILE_TELEPORT;
                 } else {
                     map->tiles[x][y].type = TILE_FLOOR; // Fallback
                 }
@@ -305,7 +315,8 @@ void map_update_smell(Map* map, int px, int py) {
 
     for(int x=1; x<map->width-1; x++) {
         for(int y=1; y<map->height-1; y++) {
-            if (map->tiles[x][y].type == TILE_WALL) continue; // Walls don't diffuse
+            if (map->tiles[x][y].type == TILE_WALL || map->tiles[x][y].type == TILE_VOID)
+                continue; // Walls don't diffuse
 
             // Check neighbors
             uint8_t max_n = 0;
@@ -414,7 +425,12 @@ SoundState map_sound_at(const Map* map, int x, int y) {
 
 bool map_is_walkable(Map* map, int x, int y) {
     if (x < 0 || x >= map->width || y < 0 || y >= map->height) return false;
-    return map->tiles[x][y].type == TILE_FLOOR || map->tiles[x][y].type == TILE_BRIDGE;
+    return (
+            map->tiles[x][y].type == TILE_FLOOR ||
+            map->tiles[x][y].type == TILE_BRIDGE ||
+            map->tiles[x][y].type == TILE_ZONE ||
+            map->tiles[x][y].type == TILE_VOID
+        );
 }
 
 // ----------------------------------------------------------------------------

@@ -13,7 +13,12 @@ typedef enum {
     TILE_WALL,
     TILE_DOOR,
     TILE_WATER,
-    TILE_BRIDGE
+    TILE_BRIDGE,
+    TILE_ZONE,       // Blank/Empty but acts as a wall. Specifically for "Zoning" between maps (visual flair, honestly)
+    TILE_VOID,       // Blank/Empty but does NOT act as a wall. Visual flair only.
+    TILE_STAIRS_UP,
+    TILE_STAIRS_DOWN,
+    TILE_TELEPORT
 } TileType;
 
 typedef struct {
@@ -46,7 +51,7 @@ typedef struct {
     int smell[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];    // 0 = None, 255 = Fresh
     SoundState sound[MAX_MAP_WIDTH][MAX_MAP_HEIGHT];
     
-    MapExit exits[16];
+    MapExit exits[256];
     int exit_count;
 } Map;
 

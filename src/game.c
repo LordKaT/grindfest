@@ -246,8 +246,8 @@ static void update_char_creator(void) {
                 //map_load_static(&g_game.current_map, "data/maps/test_scroll.map");
                 //map_load_static(&g_game.current_map, "data/maps/bastok.map");
                 map_load_static(&g_game.current_map, "data/maps/bastok_mines.map");
-                g_game.player.x = 6;
-                g_game.player.y = 22;
+                g_game.player.x = 75;
+                g_game.player.y = 51;
             } else if (g_game.player.nation == NATION_SANDORIA) {
                 map_load_static(&g_game.current_map, "data/maps/sandoria.map");
                 g_game.player.x = 27;

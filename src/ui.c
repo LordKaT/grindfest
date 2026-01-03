@@ -187,6 +187,13 @@ static int wall_mask_at(const Map* map, int x, int y) {
     return m;
 }
 
+static void mvwadd_wchar(WINDOW* win, int y, int x, wchar_t wch) {
+    cchar_t c;
+    wchar_t w[2] = {wch, 0};
+    setcchar(&c, w, A_NORMAL, 0, NULL);
+    mvwadd_wch(win, y, x, &c);
+}
+
 void ui_render_map(Map* map, const Entity* player, const Entity entities[], int entity_count, RenderMode mode) {
     // Basic rendering 
     werase(win_map);
@@ -329,13 +336,16 @@ void ui_render_map(Map* map, const Entity* player, const Entity entities[], int 
                 if (wglyph) {
                     mvwadd_wch(win_map, win_y, vx, wglyph);
                 } else {
-                     mvwaddch(win_map, win_y, vx, '#'); 
+                    mvwaddch(win_map, win_y, vx, '#'); 
                 }
             } else if (map->tiles[x][y].type == TILE_BRIDGE) {
                 wattr_set(win_map, A_NORMAL, 13, NULL);
                 mvwaddch(win_map, win_y, vx, '=');
+            } else if (map->tiles[x][y].type == TILE_ZONE) {
+                wattr_set(win_map, A_NORMAL, 2, NULL);
+                mvwadd_wchar(win_map, win_y, vx, 0x2591);
             } else {
-                 mvwaddch(win_map, win_y, vx, ' '); 
+                mvwaddch(win_map, win_y, vx, ' '); 
             }
             wattr_set(win_map, A_NORMAL, 0, NULL);
         }
@@ -522,6 +532,7 @@ void ui_render_stats(const Entity* player) {
     mvwprintw(win_panel, 3, 2, "HP: %d/%d", player->resources.hp, player->resources.max_hp);
     mvwprintw(win_panel, 4, 2, "TP: %d", player->resources.tp);
     mvwprintw(win_panel, 6, 2, "Time: %ld", turn_get_current_time());
+    mvwprintw(win_panel, 7, 2, "Pos:  %d, %d", player->x, player->y);
     
     if (player->is_engaged) {
         mvwprintw(win_panel, 8, 2, "[ENGAGED]");
