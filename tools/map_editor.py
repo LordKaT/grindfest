@@ -22,6 +22,8 @@ class MapModel:
             "name": name
         }
         self.grid: List[List[str]] = [[' ' for _ in range(width)] for _ in range(height)]
+        self.triggers: Dict[Tuple[int, int], Dict] = {} # (x,y) -> {type: 'exit'|'teleport', ...}
+        self.extra_meta: List[str] = [] # Unknown meta lines
 
     def resize(self, width: int, height: int):
         new_grid = [[' ' for _ in range(width)] for _ in range(height)]
@@ -46,6 +48,9 @@ class MapModel:
     def load_from_string(self, content: str):
         lines = content.splitlines()
         meta = {}
+        self.triggers = {}
+        self.extra_meta = []
+        
         layer_terrain_found = False
         terrain_lines = []
         
@@ -59,12 +64,33 @@ class MapModel:
                     meta[key.strip()] = val.strip()
                 except ValueError:
                     pass # Invalid meta line
+            elif line.startswith("exit:") or line.startswith("teleport:"):
+                try:
+                    parts = line.split(":", 1)[1] # x=1,y=2,...
+                    data = {}
+                    for part in parts.split(","):
+                        k, v = part.split("=")
+                        data[k.strip()] = v.strip()
+                    
+                    x = int(data.get('x', -1))
+                    y = int(data.get('y', -1))
+                    
+                    if x != -1 and y != -1:
+                        trigger_type = "exit" if line.startswith("exit:") else "teleport"
+                        data['type'] = trigger_type
+                        self.triggers[(x, y)] = data
+                except Exception:
+                    print(f"Failed to parse trigger line: {line}")
             elif line.startswith("layer:terrain"):
                 layer_terrain_found = True
                 idx += 1
                 break
             elif line.startswith("%"):
                 pass # Comment
+            else:
+                # Store unknown headers (except blank lines)
+                if line.strip():
+                     self.extra_meta.append(line)
             idx += 1
             
         # Parse Dimensions
@@ -105,6 +131,30 @@ class MapModel:
         for k, v in self.metadata.items():
             output.append(f"meta:{k}={v}")
         
+        # Extra Meta
+        output.extend(self.extra_meta)
+
+        # Triggers
+        # Filter triggers that are still valid (glyph matches logic) - actually logic is in controller
+        # Just write what is in triggers
+        for (x, y), data in self.triggers.items():
+            t_type = data.get('type')
+            if t_type == 'exit':
+                # exit:x=...,y=...,map=...,tx=...,ty=...
+                # Current format from prompt/C: exit:x=...,y=... but logic for zone includes target map/x/y
+                # Let's standardize on prompt requirement
+                line = f"exit:x={x},y={y}"
+                if 'map' in data: line += f",map={data['map']}"
+                if 'tx' in data: line += f",tx={data['tx']}"
+                if 'ty' in data: line += f",ty={data['ty']}"
+                output.append(line)
+            elif t_type == 'teleport':
+                # teleport:x=...,y=...,tx=...,ty=...
+                line = f"teleport:x={x},y={y}"
+                if 'tx' in data: line += f",tx={data['tx']}"
+                if 'ty' in data: line += f",ty={data['ty']}"
+                output.append(line)
+
         # Layer
         output.append("layer:terrain")
         
@@ -174,12 +224,16 @@ class MapView:
         palette_frame = tk.Frame(main_frame, width=100, bg="#e0e0e0")
         palette_frame.pack(side=tk.LEFT, fill=tk.Y, padx=0, pady=0)
         
+        self.create_tools_palette(palette_frame)
+        
         common_glyphs = [
             ("#", "Wall"),
             (".", "Floor"),
             ("~", "Water"),
             ("+", "Door"),
-            (">", "Stairs")
+            (">", "Stairs"),
+            ("Z", "Zone"),
+            ("T", "Teleport")
         ]
         
         for char, lbl in common_glyphs:
@@ -213,6 +267,29 @@ class MapView:
         self.canvas.bind("<B1-Motion>", self.controller.on_canvas_drag)
         self.canvas.bind("<Button-3>", self.controller.on_canvas_rclick)
         self.canvas.bind("<B3-Motion>", self.controller.on_canvas_rdrag)
+        
+        # Hotkeys
+        self.master.bind("<p>", lambda e: self.controller.set_tool("pencil"))
+        self.master.bind("<f>", lambda e: self.controller.set_tool("bucket"))
+
+    def create_tools_palette(self, parent):
+        tools_frame = tk.LabelFrame(parent, text="Tools", bg="#e0e0e0")
+        tools_frame.pack(fill=tk.X, padx=2, pady=(2, 10))
+        
+        self.btn_pencil = tk.Button(tools_frame, text="[P]encil", command=lambda: self.controller.set_tool("pencil"), relief=tk.SUNKEN)
+        self.btn_pencil.pack(fill=tk.X, padx=2, pady=1)
+        
+        self.btn_bucket = tk.Button(tools_frame, text="[F]ill", command=lambda: self.controller.set_tool("bucket"), relief=tk.RAISED)
+        self.btn_bucket.pack(fill=tk.X, padx=2, pady=1)
+
+    def update_tool_buttons(self, tool_name):
+        if tool_name == "pencil":
+            self.btn_pencil.config(relief=tk.SUNKEN)
+            self.btn_bucket.config(relief=tk.RAISED)
+        elif tool_name == "bucket":
+            self.btn_pencil.config(relief=tk.RAISED)
+            self.btn_bucket.config(relief=tk.SUNKEN)
+
 
     def calculate_metrics(self):
         f = tkfont.Font(font=self.font)
@@ -249,6 +326,8 @@ class MapView:
             elif char == "+": color = "yellow"
             elif char == ">": color = "red"
             elif char == ".": color = "#cccccc"
+            elif char == "Z": color = "#00ff00"
+            elif char == "T": color = "#ff00ff"
             
             self.canvas.itemconfigure(self.canvas_ids[(x, y)], text=char, fill=color)
 
@@ -280,6 +359,7 @@ class EditorController:
         self.view = MapView(root, self)
         
         self.current_filename = None
+        self.active_tool = "pencil"
         
         self.refresh_view_full()
 
@@ -335,6 +415,10 @@ class EditorController:
         if path:
             self.save_to_file(path)
 
+    def set_tool(self, tool_name):
+        self.active_tool = tool_name
+        self.view.update_tool_buttons(tool_name)
+
     def select_glyph(self, char):
         self.view.glyph_var.set(char)
 
@@ -343,10 +427,16 @@ class EditorController:
         return val[0] if val else ' '
 
     def on_canvas_click(self, event):
-        self.paint(event.x, event.y)
+        if self.active_tool == "pencil":
+            self.paint(event.x, event.y)
+        elif self.active_tool == "bucket":
+            gx, gy = self.view.screen_to_grid(event.x, event.y)
+            self.flood_fill(gx, gy, self.get_active_glyph())
 
     def on_canvas_drag(self, event):
-        self.paint(event.x, event.y)
+        if self.active_tool == "pencil":
+            self.paint(event.x, event.y)
+        # Bucket does not support drag
 
     def on_canvas_rclick(self, event):
         self.erase(event.x, event.y)
@@ -360,6 +450,39 @@ class EditorController:
         current = self.model.get_cell(x, y)
         
         if current != glyph:
+            # Check for Smart Tile interactions
+            if glyph == 'Z':
+                # Prompt for Zone data
+                t_map = simpledialog.askstring("Zone Exit", "Target Map Name:")
+                if t_map is None: return # Cancelled
+                t_x = simpledialog.askinteger("Zone Exit", "Target X:")
+                if t_x is None: return
+                t_y = simpledialog.askinteger("Zone Exit", "Target Y:")
+                if t_y is None: return
+                
+                self.model.triggers[(x, y)] = {
+                    'type': 'exit',
+                    'x': str(x), 'y': str(y),
+                    'map': t_map,
+                    'tx': str(t_x), 'ty': str(t_y)
+                }
+            elif glyph == 'T':
+                # Prompt for Teleport data
+                t_x = simpledialog.askinteger("Teleport", "Dest X:")
+                if t_x is None: return
+                t_y = simpledialog.askinteger("Teleport", "Dest Y:")
+                if t_y is None: return
+                
+                self.model.triggers[(x, y)] = {
+                    'type': 'teleport',
+                    'x': str(x), 'y': str(y),
+                    'tx': str(t_x), 'ty': str(t_y)
+                }
+            else:
+                # Placing normal tile: Clear any trigger at this location
+                if (x, y) in self.model.triggers:
+                    del self.model.triggers[(x, y)]
+
             self.model.set_cell(x, y, glyph)
             self.view.update_cell(x, y, glyph)
 
@@ -368,8 +491,49 @@ class EditorController:
         glyph = ' '
         current = self.model.get_cell(x, y)
         if current != glyph:
+            # Clearing tile: Clear any trigger logic too
+            if (x, y) in self.model.triggers:
+                del self.model.triggers[(x, y)]
+                
             self.model.set_cell(x, y, glyph)
             self.view.update_cell(x, y, glyph)
+
+    def flood_fill(self, start_x, start_y, fill_glyph):
+        # Bounds check
+        if not (0 <= start_x < self.model.width and 0 <= start_y < self.model.height):
+            return
+
+        target_glyph = self.model.get_cell(start_x, start_y)
+        
+        # No-op if filling with same glyph
+        if target_glyph == fill_glyph:
+            return
+
+        queue = [(start_x, start_y)]
+        visited = set() # Standard BFS precaution, though model update handles loops if state changes
+        visited.add((start_x, start_y))
+
+        while queue:
+            x, y = queue.pop(0)
+            
+            # Double check current (it might have been processed if there are dupes in queue, but visited set handles that)
+            if self.model.get_cell(x, y) != target_glyph:
+                continue
+
+            # Paint
+            self.model.set_cell(x, y, fill_glyph)
+            self.view.update_cell(x, y, fill_glyph)
+
+            # Check neighbors
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if (0 <= nx < self.model.width and 
+                    0 <= ny < self.model.height and 
+                    (nx, ny) not in visited):
+                    
+                    if self.model.get_cell(nx, ny) == target_glyph:
+                        visited.add((nx, ny))
+                        queue.append((nx, ny))
 
 if __name__ == "__main__":
     root = tk.Tk()
